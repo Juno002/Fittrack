@@ -43,7 +43,7 @@ export function WorkoutSetRow({
       </button>
 
       <div className="w-12 shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
-        Set {setIndex + 1}
+        Serie {setIndex + 1}
       </div>
 
       <div className="grid flex-1 grid-cols-2 gap-3">
@@ -63,7 +63,7 @@ export function WorkoutSetRow({
           </label>
         ) : (
           <div className="flex items-center justify-center rounded-2xl bg-white/5 px-4 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-            Bodyweight
+            Corporal
           </div>
         )}
 

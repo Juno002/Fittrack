@@ -74,22 +74,22 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
   const latestSleep = selectLatestSleepLog(state);
   const suggestedDurationMinutes = readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20;
 
-  let coachTitle = 'Ready for progressive work.';
-  let coachBody = 'Recovery is in a solid place. You can push volume with good form today.';
+  let coachTitle = 'Listo para trabajo progresivo.';
+  let coachBody = 'La recuperación está en un punto sólido. Puedes aumentar el volumen con buena técnica hoy.';
   let coachTone: 'good' | 'warn' | 'danger' = 'good';
 
   if (highestFatigue && highestFatigue[1] >= 70) {
     coachTone = 'danger';
-    coachTitle = `${highestFatigue[0]} need extra recovery.`;
-    coachBody = 'Bias today toward the least fatigued muscles or keep the session light and technical.';
+    coachTitle = `Tus ${formatMuscleGroup(highestFatigue[0]).toLowerCase()} necesitan descanso extra.`;
+    coachBody = 'Enfócate hoy en los músculos menos fatigados o mantén la sesión ligera y técnica.';
   } else if (latestSleep && latestSleep.qualityScore < 65) {
     coachTone = 'warn';
-    coachTitle = 'Sleep quality is holding recovery back.';
-    coachBody = 'Keep intensity moderate and prioritize clean sets over chasing fatigue.';
+    coachTitle = 'El sueño está frenando la recuperación.';
+    coachBody = 'Mantén una intensidad moderada y prioriza series limpias antes que buscar la fatiga.';
   } else if (readiness < 55) {
     coachTone = 'warn';
-    coachTitle = 'Recovery is trending neutral.';
-    coachBody = 'A shorter session makes more sense than a high-volume workout right now.';
+    coachTitle = 'La recuperación tiende a ser neutra.';
+    coachBody = 'Una sesión más corta tiene más sentido que un entrenamiento de alto volumen ahora mismo.';
   }
 
   return {
@@ -256,18 +256,18 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
     {
       id: 'volume',
       tone: volumeDelta !== null && volumeDelta < 0 ? 'warn' : 'good',
-      title: volumeDelta === null ? 'Baseline week established.' : `Weekly volume ${volumeDelta >= 0 ? 'up' : 'down'} ${Math.abs(volumeDelta)}%.`,
+      title: volumeDelta === null ? 'Línea base establecida.' : `Volumen semanal ${volumeDelta >= 0 ? 'sube' : 'baja'} un ${Math.abs(volumeDelta)}%.`,
       body: volumeDelta === null
-        ? 'You now have enough training data to start comparing weekly workload from here on.'
-        : 'Use the trend to decide whether to keep building volume or hold steady for recovery.',
+        ? 'Ya tienes suficientes datos para empezar a comparar tu carga semanal desde ahora.'
+        : 'Usa esta tendencia para decidir si seguir aumentando volumen o mantenerte estable para recuperar.',
     },
     {
       id: 'sleep',
       tone: latestSleep && latestSleep.durationHours < 7 ? 'warn' : 'good',
-      title: latestSleep ? `${latestSleep.durationHours}h sleep logged last night.` : 'No sleep data yet.',
+      title: latestSleep ? `${latestSleep.durationHours}h de sueño registradas.` : 'Sin datos de sueño aún.',
       body: latestSleep
-        ? 'Sleep is feeding directly into the recovery model, so logging it consistently will improve recommendations.'
-        : 'Add your last sleep block to make the recovery estimate more trustworthy.',
+        ? 'El sueño alimenta directamente el modelo de recuperación, registrarlo mejorará las recomendaciones.'
+        : 'Registra tu último bloque de sueño para que la estimación de recuperación sea más confiable.',
     },
   ] as const;
 }

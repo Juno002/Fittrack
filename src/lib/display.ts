@@ -4,11 +4,11 @@ import { parseDayKey } from '@/lib/dates';
 import type { MuscleGroup } from '@/store/types';
 
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
-  chest: 'Chest',
-  back: 'Back',
-  legs: 'Legs',
-  shoulders: 'Shoulders',
-  arms: 'Arms',
+  chest: 'Pecho',
+  back: 'Espalda',
+  legs: 'Piernas',
+  shoulders: 'Hombros',
+  arms: 'Brazos',
   core: 'Core',
 };
 

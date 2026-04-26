@@ -41,18 +41,18 @@ export function WorkoutHeader({
           </Button>
 
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Active Session</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sesión activa</p>
             <Input
               value={sessionName}
               onChange={(event) => onSessionNameChange(event.target.value)}
-              placeholder="Name your workout"
+              placeholder="Nombra tu entrenamiento"
               className="h-auto border-none bg-transparent px-0 text-2xl font-black tracking-tight text-white placeholder:text-zinc-700 focus-visible:ring-0"
             />
           </div>
         </div>
 
         <div className="rounded-[2rem] border border-white/5 bg-[#121721] px-4 py-3 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Elapsed</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Transcurrido</p>
           <p className="mt-1 text-2xl font-black tracking-tight text-[#6EE7B7]">{formatDuration(elapsedSeconds)}</p>
         </div>
       </div>
@@ -62,8 +62,8 @@ export function WorkoutHeader({
           <div className="flex items-center gap-3">
             <Timer className="size-5 animate-pulse" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Rest Timer</p>
-              <p className="text-sm font-semibold">Next set in {restSeconds}s</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Descanso</p>
+              <p className="text-sm font-semibold">Siguiente serie en {restSeconds}s</p>
             </div>
           </div>
 
@@ -72,13 +72,13 @@ export function WorkoutHeader({
             className="rounded-2xl px-4 text-[11px] font-black uppercase tracking-[0.25em] text-[#080B11] hover:bg-black/5"
             onClick={onSkipRest}
           >
-            Skip
+            Saltar
           </Button>
         </div>
       )}
 
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-        <span className="pr-2 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Rest</span>
+        <span className="pr-2 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Timer</span>
         {REST_PRESETS.map((seconds) => {
           const isActive = restDurationSeconds === seconds;
 

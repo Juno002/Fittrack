@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Activity, Clock } from 'lucide-react';
-import Model from 'react-body-highlighter';
+import Model, { type Slug, type ExtendedBodyPart } from '@mjcdev/react-body-highlighter';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useStoreData } from '@/hooks/useStoreData';
@@ -14,15 +14,11 @@ interface MuscleMapProps {
   className?: string;
 }
 
-interface ModelClickPayload {
-  muscle?: string;
-}
-
-const MUSCLE_MAPPING: Record<MuscleGroup, string[]> = {
+const MUSCLE_MAPPING: Record<MuscleGroup, Slug[]> = {
   chest: ['chest'],
   back: ['upper-back', 'lower-back', 'trapezius'],
   legs: ['quadriceps', 'hamstring', 'gluteal', 'calves'],
-  shoulders: ['front-deltoids', 'back-deltoids'],
+  shoulders: ['deltoids'],
   arms: ['biceps', 'triceps', 'forearm'],
   core: ['abs', 'obliques'],
 };
@@ -35,18 +31,20 @@ export function MuscleMap({ fatigue, className }: MuscleMapProps) {
     return selectMuscleBreakdown(storeData, selectedMuscle);
   }, [storeData, selectedMuscle]);
 
-  const modelData = useMemo(() => (
-    (Object.entries(fatigue) as [MuscleGroup, number][])
-      .map(([muscleGroup, value]) => ({
-        name: muscleGroup,
-        muscles: MUSCLE_MAPPING[muscleGroup],
-        frequency: value < 20 ? 1 : value < 60 ? 2 : 3,
-      }))
-  ), [fatigue]);
+  const modelData = useMemo(() => {
+    const data: ExtendedBodyPart[] = [];
+    (Object.entries(fatigue) as [MuscleGroup, number][]).forEach(([muscleGroup, value]) => {
+      const intensity = value === 0 ? 1 : value < 20 ? 2 : value < 60 ? 3 : 4;
+      MUSCLE_MAPPING[muscleGroup].forEach((slug) => {
+        data.push({ slug, intensity });
+      });
+    });
+    return data;
+  }, [fatigue]);
 
-  const handleModelClick = (payload: ModelClickPayload) => {
+  const handleModelClick = (payload: ExtendedBodyPart) => {
     const foundGroup = (Object.keys(MUSCLE_MAPPING) as MuscleGroup[]).find((group) => (
-      payload.muscle ? MUSCLE_MAPPING[group].includes(payload.muscle) : false
+      payload.slug ? MUSCLE_MAPPING[group].includes(payload.slug) : false
     ));
 
     if (foundGroup) {
@@ -57,19 +55,20 @@ export function MuscleMap({ fatigue, className }: MuscleMapProps) {
   return (
     <div className={cn('flex h-full w-full flex-col items-center', className)}>
       <div className="flex h-full w-full items-center justify-center gap-6">
-        {(['anterior', 'posterior'] as const).map((view) => (
+        {(['front', 'back'] as const).map((view) => (
           <div key={view} className="flex h-full flex-col items-center justify-center">
-            <Model
-              data={modelData}
-              style={{ width: '8rem', height: '16rem' }}
-              onClick={handleModelClick}
-              type={view}
-              highlightedColors={['#10b981', '#fb923c', '#ef4444']}
-              bodyColor="#2a2d31"
-            />
+            <div className="w-32 h-64 [&>svg]:w-full [&>svg]:h-full">
+              <Model
+                data={modelData}
+                onBodyPartClick={handleModelClick}
+                side={view}
+                colors={['#2a2d31', '#10b981', '#fb923c', '#ef4444']}
+                border="#252529"
+              />
+            </div>
             <div className="mt-2 rounded-md border border-white/5 bg-[#252529] px-2 py-1">
               <span className="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-400">
-                {view === 'anterior' ? 'Front' : 'Back'}
+                {view === 'front' ? 'Front' : 'Back'}
               </span>
             </div>
           </div>
