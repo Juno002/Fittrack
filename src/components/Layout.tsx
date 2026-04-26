@@ -14,9 +14,9 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'today', label: 'Home', icon: LayoutGrid },
-  { id: 'library', label: 'Train', icon: Trophy },
-  { id: 'timeline', label: 'History', icon: Clock3 },
+  { id: 'today', label: 'Inicio', icon: LayoutGrid },
+  { id: 'library', label: 'Entrenar', icon: Trophy },
+  { id: 'timeline', label: 'Diario', icon: Clock3 },
   { id: 'stats', label: 'Stats', icon: TrendingUp },
 ];
 
@@ -41,12 +41,12 @@ export function Layout({
             className="flex w-full items-center justify-between rounded-[2rem] border border-[#6EE7B7]/20 bg-[#121721]/95 px-5 py-4 shadow-2xl shadow-black/40 backdrop-blur-xl"
           >
             <div className="text-left">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Draft session</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sesión en borrador</p>
               <p className="mt-1 truncate text-sm font-black text-white">{draftName}</p>
             </div>
 
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7]">
-              Resume
+              Continuar
             </span>
           </button>
         </div>

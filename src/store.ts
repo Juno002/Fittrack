@@ -105,6 +105,7 @@ interface AppActions {
   deleteSession: (id: string) => void;
   saveTemplate: (name: string, logs: WorkoutLog[]) => void;
   deleteTemplate: (id: string) => void;
+  hydrateAppStoreData: (data: Partial<AppStoreData>) => void;
 }
 
 export type AppState = AppStoreData & AppActions;

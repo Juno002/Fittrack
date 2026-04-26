@@ -49,7 +49,7 @@ export function WorkoutLogCard({
           <button type="button" className="min-w-0 flex-1 text-left" onClick={onToggleExpand}>
             <p className="truncate text-lg font-black tracking-tight text-white">{log.exerciseName}</p>
             <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-              {log.muscleGroup} • {log.sets.length} set{log.sets.length === 1 ? '' : 's'}
+              {log.muscleGroup} • {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'}
             </p>
           </button>
 
@@ -85,7 +85,7 @@ export function WorkoutLogCard({
               onCheckedChange={(checked) => onToggleBodyweight(Boolean(checked))}
             />
             <Label htmlFor={`bodyweight-${log.id}`} className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-              Use bodyweight
+              Peso corporal
             </Label>
           </div>
 
@@ -112,7 +112,7 @@ export function WorkoutLogCard({
               onClick={onAddSet}
             >
               <Plus className="size-4" />
-              Add set
+              Añadir serie
             </Button>
           </div>
         ) : null}

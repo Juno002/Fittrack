@@ -122,18 +122,18 @@ export function Stats() {
         {storeData.weightLogs.length > 0 && (
           <section className="space-y-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Body</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Weight Trend</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Cuerpo</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Tendencia de Peso</h2>
             </div>
             
             <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <p className="text-sm font-bold text-white">Current</p>
+                  <p className="text-sm font-bold text-white">Actual</p>
                   <p className="text-2xl font-black text-[#6EE7B7]">{formatWeight(storeData.profile.weight, storeData.settings.unitSystem)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-white">Entries</p>
+                  <p className="text-sm font-bold text-white">Registros</p>
                   <p className="text-xl font-black text-zinc-400">{storeData.weightLogs.length}</p>
                 </div>
               </div>
@@ -169,8 +169,8 @@ export function Stats() {
 
         <section className="space-y-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Insights</p>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-white">What the data is saying</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Análisis</p>
+            <h2 className="mt-2 text-xl font-black tracking-tight text-white">Qué dicen los datos</h2>
           </div>
 
           {insights.map((insight) => (
@@ -224,7 +224,7 @@ export function Stats() {
         </section>
 
         <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6 text-sm text-zinc-400">
-          <p className="font-semibold text-white">Current week anchor</p>
+          <p className="font-semibold text-white">Inicio de semana actual</p>
           <p className="mt-2">{formatDayHeading(weeklyData[0]?.dayKey ?? '')}</p>
         </section>
       </div>

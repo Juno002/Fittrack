@@ -68,15 +68,15 @@ export function ExercisePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[85vh] max-w-2xl flex-col overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
+      <DialogContent className="h-[85vh] max-w-2xl overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
         <DialogHeader className="px-8 pt-8 pb-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <DialogTitle className="text-2xl font-black tracking-tight">
-                {showCustomForm ? 'Create custom exercise' : 'Add movement'}
+                {showCustomForm ? 'Crear ejercicio' : 'Añadir ejercicio'}
               </DialogTitle>
               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-                {showCustomForm ? 'Persisted in your library' : 'Single shared catalog'}
+                {showCustomForm ? 'Se guardará en tu biblioteca' : 'Catálogo compartido'}
               </p>
             </div>
 
@@ -85,25 +85,25 @@ export function ExercisePickerDialog({
               className="rounded-2xl text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7] hover:bg-[#6EE7B7]/10 hover:text-[#6EE7B7]"
               onClick={() => setShowCustomForm((current) => !current)}
             >
-              {showCustomForm ? 'Browse catalog' : 'Custom exercise'}
+              {showCustomForm ? 'Ver catálogo' : 'Ejercicio propio'}
             </Button>
           </div>
         </DialogHeader>
 
         {showCustomForm ? (
-          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 pb-8">
+          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 pb-8 no-scrollbar">
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Exercise name</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre del ejercicio</Label>
               <Input
                 value={customName}
                 onChange={(event) => setCustomName(event.target.value)}
-                placeholder="Incline DB Press"
+                placeholder="Ej: Press inclinado"
                 className="h-16 rounded-[1.75rem] border-none bg-[#1A202C] px-6 text-lg font-black text-white"
               />
             </div>
 
             <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Target muscle</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Músculo principal</Label>
               <div className="grid grid-cols-2 gap-3">
                 {FILTERS.filter((muscle) => muscle !== 'all').map((muscle) => (
                   <button
@@ -133,7 +133,7 @@ export function ExercisePickerDialog({
               )}
               onClick={() => setCustomBodyweight((current) => !current)}
             >
-              {customBodyweight ? 'Bodyweight movement' : 'Weighted movement'}
+              {customBodyweight ? 'Ejercicio corporal' : 'Ejercicio con peso'}
             </button>
 
             <div className="mt-auto grid gap-3 md:grid-cols-2">
@@ -142,7 +142,7 @@ export function ExercisePickerDialog({
                 className="h-14 rounded-[1.75rem] text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
                 onClick={resetCustomForm}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 className="h-14 rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
@@ -159,19 +159,19 @@ export function ExercisePickerDialog({
                   onOpenChange(false);
                 }}
               >
-                Save to library
+                Guardar
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <div className="space-y-4 px-8 pb-4">
+            <div className="space-y-4 px-8 pb-4 shrink-0">
               <div className="flex items-center gap-3 rounded-[1.75rem] bg-[#1A202C] px-5 py-4">
                 <Search className="size-5 text-zinc-500" />
                 <Input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search movements..."
+                  placeholder="Buscar ejercicios..."
                   className="border-none bg-transparent p-0 text-lg font-bold text-white placeholder:text-zinc-700 focus-visible:ring-0"
                 />
               </div>
@@ -189,21 +189,21 @@ export function ExercisePickerDialog({
                     )}
                     onClick={() => setActiveFilter(filter)}
                   >
-                    {filter === 'all' ? 'All' : formatMuscleGroup(filter)}
+                    {filter === 'all' ? 'Todos' : formatMuscleGroup(filter)}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 pb-8">
+            <div className="flex-1 overflow-y-auto px-6 pb-8 no-scrollbar">
               {isLoading ? (
                 <div className="flex h-full items-center justify-center text-sm font-semibold text-zinc-500">
-                  Loading exercise catalog...
+                  Cargando catálogo...
                 </div>
               ) : filteredExercises.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[2rem] border border-dashed border-white/5 bg-white/5 text-center">
                   <Search className="size-10 text-zinc-700" />
-                  <p className="text-sm font-semibold text-zinc-400">No exercises match that search yet.</p>
+                  <p className="text-sm font-semibold text-zinc-400">Sin resultados.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -224,7 +224,7 @@ export function ExercisePickerDialog({
                         <div className="min-w-0">
                           <p className="truncate text-base font-black text-white">{exercise.name}</p>
                           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                            {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                            {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
                           </p>
                         </div>
                       </div>

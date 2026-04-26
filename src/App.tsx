@@ -13,7 +13,7 @@ import { Onboarding } from '@/views/Onboarding';
 function ViewFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-[#080B11] text-sm font-semibold text-zinc-500">
-      Loading Fittrack...
+      Cargando Fittrack...
     </div>
   );
 }
@@ -56,7 +56,7 @@ export default function App() {
     <Layout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
-      draftName={draftSession ? (draftSession.name.trim() || 'Draft workout') : undefined}
+      draftName={draftSession ? (draftSession.name.trim() || 'Borrador') : undefined}
       onResumeDraft={draftSession ? () => setIsWorkoutOpen(true) : undefined}
     >
       <Suspense fallback={<ViewFallback />}>

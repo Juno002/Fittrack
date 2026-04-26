@@ -21,10 +21,10 @@ export function WorkoutFinishView({
     <div className="flex h-full flex-col justify-between bg-[#080B11] p-8">
       <div className="flex flex-1 flex-col items-center justify-center gap-10 text-center">
         <div className="space-y-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Finish session</p>
-          <h2 className="text-4xl font-black tracking-tight text-white">How hard was it?</h2>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Finalizar sesión</p>
+          <h2 className="text-4xl font-black tracking-tight text-white">¿Cómo de duro fue?</h2>
           <p className="mx-auto max-w-sm text-sm text-zinc-400">
-            Rate the effort so the prototype can keep a real recovery history instead of fake numbers.
+            Valora el esfuerzo para que el modelo de recuperación pueda registrar datos reales.
           </p>
         </div>
 
@@ -38,7 +38,7 @@ export function WorkoutFinishView({
             >
               <p className="text-3xl font-black">{effort}</p>
               <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                {effort <= 2 ? 'Light' : effort === 3 ? 'Solid' : 'Hard'}
+                {effort <= 2 ? 'Ligero' : effort === 3 ? 'Sólido' : 'Duro'}
               </p>
             </button>
           ))}
@@ -46,11 +46,11 @@ export function WorkoutFinishView({
 
         <div className="grid w-full max-w-sm grid-cols-2 gap-4">
           <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duration</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duración</p>
             <p className="mt-2 text-2xl font-black text-white">{formatDuration(elapsedSeconds)}</p>
           </div>
           <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sets</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Series</p>
             <p className="mt-2 text-2xl font-black text-white">{totalSets}</p>
           </div>
         </div>
@@ -61,7 +61,7 @@ export function WorkoutFinishView({
         className="mt-8 h-14 rounded-[1.75rem] text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
         onClick={onBack}
       >
-        Back to session
+        Volver a la sesión
       </Button>
     </div>
   );

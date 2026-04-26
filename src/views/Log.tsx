@@ -63,14 +63,14 @@ function FoodEntryDialog({
       <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] p-8 text-white">
         <div className="space-y-6">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Nutrition</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Nutrición</p>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-              {entry ? 'Edit meal entry' : 'Add meal entry'}
+              {entry ? 'Editar comida' : 'Registrar comida'}
             </h2>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Meal name</Label>
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre de la comida</Label>
             <Input
               value={draft.name}
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
@@ -80,7 +80,7 @@ function FoodEntryDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorías</Label>
               <Input
                 type="number"
                 value={draft.calories}
@@ -89,7 +89,7 @@ function FoodEntryDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Protein</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Proteína</Label>
               <Input
                 type="number"
                 value={draft.protein}
@@ -107,7 +107,7 @@ function FoodEntryDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fat</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Grasas</Label>
               <Input
                 type="number"
                 value={draft.fat}
@@ -128,7 +128,7 @@ function FoodEntryDialog({
               onOpenChange(false);
             }}
           >
-            Save meal
+            Guardar comida
           </Button>
         </div>
       </DialogContent>
@@ -176,14 +176,14 @@ function SleepLogDialog({
       <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] p-8 text-white">
         <div className="space-y-6">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Recovery</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Recuperación</p>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-              {entry ? 'Edit sleep log' : 'Add sleep log'}
+              {entry ? 'Editar sueño' : 'Registrar sueño'}
             </h2>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duration (hours)</Label>
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duración (horas)</Label>
             <Input
               type="number"
               min={0}
@@ -195,7 +195,7 @@ function SleepLogDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Quality score</Label>
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calidad (0-100)</Label>
             <Input
               type="number"
               min={0}
@@ -216,7 +216,7 @@ function SleepLogDialog({
               onOpenChange(false);
             }}
           >
-            Save sleep log
+            Guardar registro
           </Button>
         </div>
       </DialogContent>
@@ -242,7 +242,7 @@ function WorkoutTimelineCard({
         <button type="button" className="min-w-0 flex-1 text-left" onClick={onToggle}>
           <p className="text-sm font-black text-white">{session.name}</p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-            {formatClockLabel(session.performedAt)} • {formatDuration(session.durationSeconds)} • Effort {session.effort}/5
+            {formatClockLabel(session.performedAt)} • {formatDuration(session.durationSeconds)} • Esfuerzo {session.effort}/5
           </p>
         </button>
 
@@ -273,7 +273,7 @@ function WorkoutTimelineCard({
               <div className="mt-3 space-y-2">
                 {log.sets.map((set, index) => (
                   <div key={`${log.id}-${index}`} className="flex items-center justify-between rounded-2xl bg-white/5 px-3 py-3 text-sm text-zinc-300">
-                    <span>Set {index + 1}</span>
+                    <span>Serie {index + 1}</span>
                     <span>
                       {log.isBodyweight ? '' : `${set.weight}kg • `}{set.reps} reps
                     </span>
@@ -316,8 +316,8 @@ export function Log({ onOpenWorkout }: LogProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Timeline</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Real daily log</h1>
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Línea de tiempo</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Registro diario</h1>
         <p className="mt-2 text-sm text-zinc-400">{formatDayHeading(selectedDayKey)}</p>
       </header>
 
@@ -339,7 +339,7 @@ export function Log({ onOpenWorkout }: LogProps) {
               onClick={() => setSelectedDayKey(dayKey)}
             >
               <span className="text-[9px] font-bold uppercase tracking-[0.25em]">
-                {dayKey === selectTodayDayKey() ? 'TODAY' : dayKey.slice(8)}
+                {dayKey === selectTodayDayKey() ? 'HOY' : dayKey.slice(8)}
               </span>
               <span className="mt-2 text-xs font-black tracking-[0.2em]">
                 {formatDayHeading(dayKey).slice(0, 3)}
@@ -352,15 +352,15 @@ export function Log({ onOpenWorkout }: LogProps) {
 
       <div className="grid grid-cols-3 gap-3 px-4 pb-4">
         <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sessions</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sesiones</p>
           <p className="mt-2 text-2xl font-black text-white">{daySummary.sessions.length}</p>
         </div>
         <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorías</p>
           <p className="mt-2 text-2xl font-black text-white">{daySummary.calories}</p>
         </div>
         <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sleep</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sueño</p>
           <p className="mt-2 text-2xl font-black text-white">
             {daySummary.sleepLog ? `${daySummary.sleepLog.durationHours}h` : '--'}
           </p>
@@ -448,9 +448,9 @@ export function Log({ onOpenWorkout }: LogProps) {
               <article key={entry.id} className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-black text-white">Sleep block</p>
+                    <p className="text-sm font-black text-white">Sueño</p>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                      {entry.sleepLog.durationHours}h • quality {entry.sleepLog.qualityScore}/100
+                      {entry.sleepLog.durationHours}h • calidad {entry.sleepLog.qualityScore}/100
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -494,8 +494,8 @@ export function Log({ onOpenWorkout }: LogProps) {
         <DialogContent className="max-w-sm rounded-[2.75rem] border-white/5 bg-[#121721] p-8 text-white">
           <div className="space-y-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Add real data</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Choose the entry type</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Datos reales</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Elige el tipo de registro</h2>
             </div>
 
             <div className="grid gap-3">
@@ -507,11 +507,11 @@ export function Log({ onOpenWorkout }: LogProps) {
                     onOpenWorkout();
                     return;
                   }
-                  startDraftSession({ name: 'Training Session' });
+                  startDraftSession({ name: 'Entrenamiento' });
                   onOpenWorkout();
                 }}
               >
-                Workout
+                Entrenamiento
               </Button>
               <Button
                 variant="ghost"
@@ -522,7 +522,7 @@ export function Log({ onOpenWorkout }: LogProps) {
                   setIsFoodDialogOpen(true);
                 }}
               >
-                Meal
+                Comida
               </Button>
               <Button
                 variant="ghost"
@@ -533,7 +533,7 @@ export function Log({ onOpenWorkout }: LogProps) {
                   setIsSleepDialogOpen(true);
                 }}
               >
-                Sleep
+                Sueño
               </Button>
             </div>
           </div>

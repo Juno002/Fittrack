@@ -106,16 +106,16 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       try {
         const importedData = JSON.parse(e.target?.result as string);
         if (!importedData.profile || !importedData.sessions) {
-          throw new Error('Invalid backup file');
+          throw new Error('Archivo de backup inválido');
         }
         
-        if (window.confirm('This will overwrite your current data with the imported backup. Are you sure?')) {
+        if (window.confirm('Esto sobrescribirá tus datos actuales con el backup importado. ¿Estás seguro?')) {
           useStore.setState(importedData);
           setIsSettingsOpen(false);
           window.location.reload();
         }
       } catch (err) {
-        alert('Failed to parse backup file. Please ensure it is a valid FitTrack backup.');
+        alert('Error al procesar el archivo. Asegúrate de que sea un backup válido de FitTrack.');
         console.error('Import error:', err);
       }
       
@@ -148,12 +148,12 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         <section className="overflow-hidden rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
           <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Readiness</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Preparación</p>
               <p className="mt-3 text-[4rem] font-black leading-none tracking-tighter text-white">
                 {dashboardCards.readiness.readiness}%
               </p>
               <p className="mt-3 text-sm font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                {focusLabel || 'General recovery'}
+                {focusLabel || 'Recuperación general'}
               </p>
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
                 {dashboardCards.readiness.coachBody}
@@ -182,7 +182,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
           <div className="mt-8 grid grid-cols-2 gap-4">
             <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
               <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                <span>Sleep</span>
+                <span>Sueño</span>
                 <span className="text-zinc-100">
                   {dashboardCards.latestSleep ? `${dashboardCards.latestSleep.durationHours}h` : '--'}
                 </span>
@@ -193,7 +193,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
             </div>
             <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
               <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                <span>Calories</span>
+                <span>Calorías</span>
                 <span className="text-zinc-100">{dashboardCards.todaySummary.calories}</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1A202C]">
@@ -255,7 +255,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                     </p>
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                    {Math.round(dashboardCards.readiness.fatigue[exercise.muscleGroup])}% fatigue
+                    {Math.round(dashboardCards.readiness.fatigue[exercise.muscleGroup])}% fatiga
                   </span>
                 </div>
               ))}
@@ -267,13 +267,13 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] text-white">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black tracking-tight">Settings & targets</DialogTitle>
+            <DialogTitle className="text-2xl font-black tracking-tight">Ajustes y objetivos</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Age</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Edad</Label>
                 <Input
                   type="number"
                   value={profileDraft.age}
@@ -284,7 +284,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                    Weight ({unitSystemDraft === 'metric' ? 'kg' : 'lb'})
+                    Peso ({unitSystemDraft === 'metric' ? 'kg' : 'lb'})
                   </Label>
                   <button
                     onClick={() => {
@@ -296,7 +296,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                     }}
                     className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]"
                   >
-                    Switch to {unitSystemDraft === 'metric' ? 'lb' : 'kg'}
+                    Cambiar a {unitSystemDraft === 'metric' ? 'lb' : 'kg'}
                   </button>
                 </div>
                 <Input
@@ -307,7 +307,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Height (cm)</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Altura (cm)</Label>
                 <Input
                   type="number"
                   value={profileDraft.height}
@@ -316,7 +316,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorías</Label>
                 <Input
                   type="number"
                   value={calorieDraft}
@@ -329,7 +329,9 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
             <div className="grid grid-cols-3 gap-3">
               {(['protein', 'carbs', 'fat'] as const).map((macro) => (
                 <div key={macro} className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{macro}</Label>
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                    {macro === 'protein' ? 'Proteína' : macro === 'carbs' ? 'Carbs' : 'Grasas'}
+                  </Label>
                   <Input
                     type="number"
                     value={macroDraft[macro]}
@@ -357,18 +359,18 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                 setIsSettingsOpen(false);
               }}
             >
-              Save profile
+              Guardar perfil
             </Button>
 
             <div className="pt-6 mt-6 border-t border-white/5 space-y-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">Data Management</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">Gestión de Datos</p>
               
               <Button
                 variant="outline"
                 className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
                 onClick={handleExportData}
               >
-                <Download className="mr-2 h-4 w-4" /> Export Backup
+                <Download className="mr-2 h-4 w-4" /> Exportar Backup
               </Button>
               
               <input
@@ -383,7 +385,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                 className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="mr-2 h-4 w-4" /> Import Backup
+                <Upload className="mr-2 h-4 w-4" /> Importar Backup
               </Button>
             </div>
           </div>

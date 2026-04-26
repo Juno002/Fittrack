@@ -65,7 +65,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
     }
 
     startDraftSession({
-      name: `${exercise.name} Focus`,
+      name: `Foco: ${exercise.name}`,
       logs: [buildWorkoutLog(exercise)],
     });
     onOpenWorkout();
@@ -73,7 +73,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
 
   const handleStartTemplate = (template: WorkoutTemplate) => {
     if (draftSession) {
-      if (!window.confirm('Starting a template will discard your current draft. Proceed?')) return;
+      if (!window.confirm('Iniciar una plantilla descartará tu borrador actual. ¿Continuar?')) return;
     }
     
     // Copy the logs and reset their IDs to prevent reusing IDs in new sessions
@@ -151,7 +151,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
                 )}
                 onClick={() => setActiveFilter(filter)}
               >
-                {filter === 'all' ? 'All' : formatMuscleGroup(filter)}
+                {filter === 'all' ? 'Todos' : formatMuscleGroup(filter)}
               </button>
             ))}
           </div>
@@ -159,13 +159,13 @@ export function Train({ onOpenWorkout }: TrainProps) {
           <div className="flex-1 overflow-y-auto px-4 pb-32">
             {isLoading ? (
               <div className="flex h-full items-center justify-center text-sm font-semibold text-zinc-500">
-                Loading catalog...
+                Cargando catálogo...
               </div>
             ) : (
               <div className="space-y-2">
                 {filteredExercises.map((exercise) => {
                   const exerciseFatigue = fatigue[exercise.muscleGroup];
-                  const statusLabel = exerciseFatigue >= 70 ? 'Recover first' : exerciseFatigue >= 45 ? 'Moderate fatigue' : 'Ready';
+                  const statusLabel = exerciseFatigue >= 70 ? 'Recupera primero' : exerciseFatigue >= 45 ? 'Fatiga moderada' : 'Listo';
 
                   return (
                     <button
@@ -181,12 +181,12 @@ export function Train({ onOpenWorkout }: TrainProps) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-white">{exercise.name}</p>
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                          {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                          {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
                         </p>
                       </div>
 
                       <div className="text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fatigue</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fatiga</p>
                         <p className="mt-1 text-sm font-black text-white">{Math.round(exerciseFatigue)}%</p>
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">{statusLabel}</p>
                       </div>
@@ -217,7 +217,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
                       onClick={() => useStore.getState().deleteTemplate(template.id)}
                       className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-300"
                     >
-                      Delete
+                      Eliminar
                     </button>
                   </div>
                   
@@ -233,7 +233,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
                     className="h-12 w-full rounded-[1.5rem] bg-[#6EE7B7]/10 text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7] hover:bg-[#6EE7B7]/20"
                     onClick={() => handleStartTemplate(template)}
                   >
-                    Start Routine
+                    Iniciar Rutina
                   </button>
                 </div>
               ))}
