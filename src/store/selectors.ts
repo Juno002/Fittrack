@@ -16,11 +16,8 @@ import {
   getRecoveryColor,
   getRecoveryText,
 } from '@/lib/fatigue';
-import {
-  getWorkoutSessionLoadTotal,
-  getWorkoutSessionRepTotal,
-  getWorkoutSessionSetTotal,
-} from '@/lib/workout';
+import { getWorkoutSessionLoadTotal, getWorkoutSessionRepTotal, getWorkoutSessionSetTotal } from '@/lib/workout';
+import { formatMuscleGroup } from '@/lib/display';
 import type { AppStoreData } from '@/store';
 import type { ExerciseDefinition, MuscleGroup } from '@/store/types';
 

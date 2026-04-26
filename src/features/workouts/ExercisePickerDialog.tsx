@@ -68,8 +68,8 @@ export function ExercisePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[85vh] max-w-2xl overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
-        <DialogHeader className="px-8 pt-8 pb-4">
+      <DialogContent className="flex h-[85vh] max-w-2xl flex-col overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
+        <DialogHeader className="shrink-0 px-8 pt-8 pb-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <DialogTitle className="text-2xl font-black tracking-tight">
@@ -91,7 +91,7 @@ export function ExercisePickerDialog({
         </DialogHeader>
 
         {showCustomForm ? (
-          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 pb-8 no-scrollbar">
+          <div className="flex flex-1 min-h-0 flex-col gap-6 overflow-y-auto px-8 pb-8 no-scrollbar">
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre del ejercicio</Label>
               <Input
@@ -195,7 +195,7 @@ export function ExercisePickerDialog({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 pb-8 no-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-8 no-scrollbar">
               {isLoading ? (
                 <div className="flex h-full items-center justify-center text-sm font-semibold text-zinc-500">
                   Cargando catálogo...
