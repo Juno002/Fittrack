@@ -22,13 +22,59 @@ export const EXERCISE_ICON_NAMES = [
 
 export type ExerciseIconName = (typeof EXERCISE_ICON_NAMES)[number];
 
+export const EXERCISE_DIFFICULTIES = [
+  'Beginner',
+  'Intermediate',
+  'Advanced',
+  'Elite',
+  'Custom',
+] as const;
+
+export type ExerciseDifficulty = (typeof EXERCISE_DIFFICULTIES)[number];
+
+export const EXERCISE_DEMO_KEYS = [
+  'push_up',
+  'pike_push_up',
+  'squat',
+  'lunge',
+  'plank',
+  'dead_bug',
+  'hollow_hold',
+  'leg_raise',
+  'mountain_climber',
+  'superman',
+  'jump_squat',
+  'burpee',
+  'bear_crawl',
+  'crab_walk',
+] as const;
+
+export type ExerciseDemoKey = (typeof EXERCISE_DEMO_KEYS)[number];
+
+export interface ExerciseProgression {
+  easier?: string[];
+  current: string;
+  harder?: string[];
+}
+
 export interface ExerciseCatalogEntry {
   id: string;
   name: string;
   muscleGroup: MuscleGroup;
   isBodyweight: boolean;
   mechanic: string | null;
+  difficulty?: ExerciseDifficulty;
+  summary?: string;
+  coachNote?: string;
+  cues?: string[];
   instructions?: string[];
+  mistakes?: string[];
+  progression?: ExerciseProgression;
+  youtubeQuery?: string;
+  demoKey?: ExerciseDemoKey;
+  noEquipment?: boolean;
+  searchTerms?: string[];
+  images?: string[];
 }
 
 export interface ExerciseDefinition extends ExerciseCatalogEntry {

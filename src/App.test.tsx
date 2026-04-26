@@ -43,9 +43,11 @@ describe('App', () => {
     }));
 
     const { default: App } = await import('@/App');
-    render(<App />);
+    const { unmount } = render(<App />);
 
     expect(await screen.findByDisplayValue('Reloaded draft')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /finish/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /finalizar/i })).toBeInTheDocument();
+
+    unmount();
   });
 });

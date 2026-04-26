@@ -166,6 +166,27 @@ function isMacroGoal(value: unknown): value is MacroGoal {
   return typeof goal.protein === 'number' && typeof goal.carbs === 'number' && typeof goal.fat === 'number';
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function normalizeProgression(value: unknown): CustomExercise['progression'] | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const progression = value as Record<string, unknown>;
+  if (typeof progression.current !== 'string') {
+    return undefined;
+  }
+
+  return {
+    current: progression.current,
+    easier: isStringArray(progression.easier) ? progression.easier : undefined,
+    harder: isStringArray(progression.harder) ? progression.harder : undefined,
+  };
+}
+
 function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutLog | null {
   if (!rawLog || typeof rawLog !== 'object') {
     return null;
@@ -296,6 +317,18 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         muscleGroup: value.muscleGroup as CustomExercise['muscleGroup'],
         isBodyweight: Boolean(value.isBodyweight),
         mechanic: typeof value.mechanic === 'string' ? value.mechanic : null,
+        difficulty: typeof value.difficulty === 'string' ? value.difficulty as CustomExercise['difficulty'] : undefined,
+        summary: typeof value.summary === 'string' ? value.summary : undefined,
+        coachNote: typeof value.coachNote === 'string' ? value.coachNote : undefined,
+        cues: isStringArray(value.cues) ? value.cues : undefined,
+        instructions: isStringArray(value.instructions) ? value.instructions : undefined,
+        mistakes: isStringArray(value.mistakes) ? value.mistakes : undefined,
+        progression: normalizeProgression(value.progression),
+        youtubeQuery: typeof value.youtubeQuery === 'string' ? value.youtubeQuery : undefined,
+        demoKey: typeof value.demoKey === 'string' ? value.demoKey as CustomExercise['demoKey'] : undefined,
+        noEquipment: typeof value.noEquipment === 'boolean' ? value.noEquipment : undefined,
+        searchTerms: isStringArray(value.searchTerms) ? value.searchTerms : undefined,
+        images: isStringArray(value.images) ? value.images : undefined,
         iconName: getExerciseIconName(value.muscleGroup as CustomExercise['muscleGroup'], typeof value.iconName === 'string' ? value.iconName : undefined),
         source: value.source === 'custom' ? 'custom' : 'legacy',
         createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
@@ -400,6 +433,18 @@ export const useStore = create<AppState>()(
           muscleGroup: exerciseInput.muscleGroup,
           isBodyweight: exerciseInput.isBodyweight,
           mechanic: exerciseInput.mechanic,
+          difficulty: exerciseInput.difficulty,
+          summary: exerciseInput.summary,
+          coachNote: exerciseInput.coachNote,
+          cues: exerciseInput.cues,
+          instructions: exerciseInput.instructions,
+          mistakes: exerciseInput.mistakes,
+          progression: exerciseInput.progression,
+          youtubeQuery: exerciseInput.youtubeQuery,
+          demoKey: exerciseInput.demoKey,
+          noEquipment: exerciseInput.noEquipment,
+          searchTerms: exerciseInput.searchTerms,
+          images: exerciseInput.images,
           iconName: exerciseInput.iconName ?? getExerciseIconName(exerciseInput.muscleGroup),
           source: 'custom',
           createdAt: exerciseInput.createdAt ?? new Date().toISOString(),

@@ -63,7 +63,7 @@ export function WorkoutSetRow({
           </label>
         ) : (
           <div className="flex items-center justify-center rounded-2xl bg-white/5 px-4 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-            Corporal
+            Sin equipo
           </div>
         )}
 

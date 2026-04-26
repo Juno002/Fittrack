@@ -16,6 +16,18 @@ export function formatMuscleGroup(muscleGroup: MuscleGroup) {
   return MUSCLE_LABELS[muscleGroup];
 }
 
+export function formatMuscleList(muscleGroups: MuscleGroup[]) {
+  if (muscleGroups.length === 0) {
+    return 'Recuperación general';
+  }
+
+  if (muscleGroups.length === 1) {
+    return formatMuscleGroup(muscleGroups[0]);
+  }
+
+  return muscleGroups.map((muscleGroup) => formatMuscleGroup(muscleGroup)).join(' + ');
+}
+
 export function formatDuration(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

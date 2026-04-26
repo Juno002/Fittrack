@@ -16,8 +16,8 @@ import {
   getRecoveryColor,
   getRecoveryText,
 } from '@/lib/fatigue';
-import { getWorkoutSessionLoadTotal, getWorkoutSessionRepTotal, getWorkoutSessionSetTotal } from '@/lib/workout';
-import { formatMuscleGroup } from '@/lib/display';
+import { getTrackedSets, getWorkoutSessionLoadTotal, getWorkoutSessionRepTotal, getWorkoutSessionSetTotal } from '@/lib/workout';
+import { formatMuscleGroup, formatMuscleList } from '@/lib/display';
 import type { AppStoreData } from '@/store';
 import type { ExerciseDefinition, MuscleGroup } from '@/store/types';
 
@@ -63,30 +63,75 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
   const entries = Object.entries(fatigue) as [MuscleGroup, number][];
   const averageFatigue = entries.reduce((total, [, value]) => total + value, 0) / entries.length;
   const readiness = clamp(Math.round(100 - averageFatigue), 12, 100);
-  const recommendedMuscles = [...entries]
-    .sort((left, right) => left[1] - right[1])
-    .slice(0, 2)
-    .map(([muscleGroup]) => muscleGroup);
+  const hasTrainingHistory = state.sessions.length > 0;
+  const recommendedMuscles: MuscleGroup[] = hasTrainingHistory
+    ? [...entries]
+        .sort((left, right) => left[1] - right[1])
+        .slice(0, 2)
+        .map(([muscleGroup]) => muscleGroup)
+    : ['back', 'legs', 'chest'];
   const highestFatigue = [...entries].sort((left, right) => right[1] - left[1])[0];
   const latestSleep = selectLatestSleepLog(state);
-  const suggestedDurationMinutes = readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20;
+  const lowSleep = Boolean(latestSleep && (latestSleep.durationHours < 7 || latestSleep.qualityScore < 65));
+  const highFatigue = Boolean(highestFatigue && highestFatigue[1] >= 70);
+  const suggestedDurationMinutes = !hasTrainingHistory
+    ? 30
+    : readiness >= 80
+      ? 45
+      : readiness >= 60
+        ? 35
+        : readiness >= 40
+          ? 25
+          : 20;
+  const suggestedExerciseCount = suggestedDurationMinutes >= 45 ? 4 : suggestedDurationMinutes >= 30 ? 3 : 2;
+  const focusLabel = hasTrainingHistory ? formatMuscleList(recommendedMuscles) : 'Cuerpo completo';
 
   let coachTitle = 'Listo para trabajo progresivo.';
   let coachBody = 'La recuperación está en un punto sólido. Puedes aumentar el volumen con buena técnica hoy.';
   let coachTone: 'good' | 'warn' | 'danger' = 'good';
+  let sessionModeLabel = 'Día productivo';
+  let decisionBody = 'Tienes margen para entrenar con intención sin sobrecargarte.';
+  const riskLabel = highFatigue && highestFatigue
+    ? `${formatMuscleGroup(highestFatigue[0])} con fatiga alta`
+    : lowSleep
+      ? 'Sueño por debajo de lo ideal'
+      : hasTrainingHistory
+        ? 'Carga semanal estable'
+        : 'Sin línea base todavía';
+  const riskBody = highFatigue && highestFatigue
+    ? `Evita cargar fuerte ${formatMuscleGroup(highestFatigue[0]).toLowerCase()} hoy.`
+    : lowSleep
+      ? 'Prioriza control técnico y evita perseguir fatiga extra.'
+      : hasTrainingHistory
+        ? 'La distribución de carga se ve razonable para seguir empujando.'
+        : 'Tu primera sesión servirá para calibrar futuras recomendaciones.';
 
-  if (highestFatigue && highestFatigue[1] >= 70) {
+  if (!hasTrainingHistory) {
+    coachTitle = 'Empieza con una sesión base.';
+    coachBody = 'Haz un entrenamiento corto y limpio para que Fittrack empiece a entender cómo recuperas.';
+    sessionModeLabel = 'Sesión base';
+    decisionBody = 'Lo mejor ahora es crear una referencia simple antes de optimizar volumen o intensidad.';
+  } else if (highestFatigue && highestFatigue[1] >= 70) {
     coachTone = 'danger';
     coachTitle = `Tus ${formatMuscleGroup(highestFatigue[0]).toLowerCase()} necesitan descanso extra.`;
     coachBody = 'Enfócate hoy en los músculos menos fatigados o mantén la sesión ligera y técnica.';
+    sessionModeLabel = 'Sesión inteligente';
+    decisionBody = 'Conviene mantener la sesión corta y evitar los patrones que más castigan tu músculo en riesgo.';
   } else if (latestSleep && latestSleep.qualityScore < 65) {
     coachTone = 'warn';
     coachTitle = 'El sueño está frenando la recuperación.';
     coachBody = 'Mantén una intensidad moderada y prioriza series limpias antes que buscar la fatiga.';
+    sessionModeLabel = 'Sesión técnica';
+    decisionBody = 'Tu recuperación sistémica bajó, así que hoy conviene calidad antes que volumen.';
   } else if (readiness < 55) {
     coachTone = 'warn';
     coachTitle = 'La recuperación tiende a ser neutra.';
     coachBody = 'Una sesión más corta tiene más sentido que un entrenamiento de alto volumen ahora mismo.';
+    sessionModeLabel = 'Sesión corta';
+    decisionBody = 'Tu carga reciente todavía pesa, así que vale más sumar que forzar.';
+  } else if (readiness >= 80) {
+    sessionModeLabel = 'Día fuerte';
+    decisionBody = 'Hoy sí tienes espacio para empujar un poco más si la técnica se mantiene sólida.';
   }
 
   return {
@@ -95,9 +140,16 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
     recommendedMuscles,
     highestFatigue,
     suggestedDurationMinutes,
+    suggestedExerciseCount,
     coachTone,
     coachTitle,
     coachBody,
+    focusLabel,
+    sessionModeLabel,
+    decisionBody,
+    riskLabel,
+    riskBody,
+    hasTrainingHistory,
   };
 }
 
@@ -106,12 +158,12 @@ export function selectRecommendedExercises(
   library: ExerciseDefinition[],
   referenceDate = new Date(),
 ) {
-  const { recommendedMuscles } = selectReadinessSummary(state, referenceDate);
+  const { recommendedMuscles, suggestedExerciseCount } = selectReadinessSummary(state, referenceDate);
   const muscleSet = new Set(recommendedMuscles);
 
   return library
     .filter((exercise) => muscleSet.has(exercise.muscleGroup))
-    .slice(0, 4);
+    .slice(0, suggestedExerciseCount);
 }
 
 export function selectTrainingStreak(state: AppStoreData) {
@@ -269,6 +321,35 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
   ] as const;
 }
 
+export function selectWeeklyMomentumSummary(state: AppStoreData, referenceDate = new Date()) {
+  const weeklyData = selectWeeklyTrainingData(state, referenceDate);
+  const sessionsCompleted = weeklyData.filter((day) => day.trained).length;
+  const weeklyVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
+  const previousWeekVolume = selectPreviousWeekVolume(state, referenceDate);
+  const volumeDelta = previousWeekVolume === 0
+    ? null
+    : Math.round(((weeklyVolume - previousWeekVolume) / previousWeekVolume) * 100);
+  const weekStart = startOfWeek(referenceDate, { weekStartsOn: 1 });
+  const weeklySleepLogs = state.sleepLogs.filter((entry) => {
+    const loggedAt = parseISO(entry.loggedAt);
+
+    return loggedAt >= weekStart && loggedAt <= referenceDate;
+  });
+  const averageSleepHours = weeklySleepLogs.length > 0
+    ? Number((weeklySleepLogs.reduce((total, entry) => total + entry.durationHours, 0) / weeklySleepLogs.length).toFixed(1))
+    : null;
+  const targetSessions = 4;
+
+  return {
+    sessionsCompleted,
+    targetSessions,
+    volumeDelta,
+    averageSleepHours,
+    summary: `${sessionsCompleted}/${targetSessions} sesiones`,
+    detail: volumeDelta === null ? 'Primera semana con referencia' : `${volumeDelta >= 0 ? '+' : ''}${volumeDelta}% volumen`,
+  };
+}
+
 export function selectMuscleBreakdown(state: AppStoreData, muscleGroup: MuscleGroup, referenceDate = new Date()) {
   return getFatigueBreakdown(
     {
@@ -291,6 +372,7 @@ export function selectDashboardCards(state: AppStoreData) {
     todaySummary,
     readiness,
     latestSleep: selectLatestSleepLog(state),
+    weeklyMomentum: selectWeeklyMomentumSummary(state),
   };
 }
 
@@ -300,6 +382,8 @@ export interface ExerciseHistoryEntry {
   maxWeight: number;
   estimated1RM: number;
   totalVolume: number;
+  totalReps: number;
+  bestReps: number;
 }
 
 export function selectExerciseHistory(state: AppStoreData, exerciseId: string): ExerciseHistoryEntry[] {
@@ -312,21 +396,27 @@ export function selectExerciseHistory(state: AppStoreData, exerciseId: string): 
     let maxWeight = 0;
     let max1RM = 0;
     let totalVolume = 0;
+    let totalReps = 0;
+    let bestReps = 0;
 
-    log.sets.filter((s) => s.completed).forEach((set) => {
+    getTrackedSets(log).forEach((set) => {
       if (set.weight > maxWeight) maxWeight = set.weight;
       const oneRepMax = set.weight * (1 + set.reps / 30);
       if (oneRepMax > max1RM) max1RM = oneRepMax;
       totalVolume += set.reps * set.weight;
+      totalReps += set.reps;
+      if (set.reps > bestReps) bestReps = set.reps;
     });
 
-    if (totalVolume > 0 || (log.isBodyweight && log.sets.some(s => s.completed))) {
+    if (totalReps > 0 || totalVolume > 0) {
       history.push({
         dayKey: session.dayKey,
         performedAt: session.performedAt,
         maxWeight,
         estimated1RM: max1RM,
         totalVolume,
+        totalReps,
+        bestReps,
       });
     }
   });
