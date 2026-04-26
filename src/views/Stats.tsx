@@ -1,166 +1,232 @@
 import { useMemo } from 'react';
-import { useStore } from '@/store';
-import { isSameDay, subDays, startOfWeek, addDays, format, isAfter } from 'date-fns';
+import { Flame, Moon, TrendingUp } from 'lucide-react';
+
+import { formatDayHeading } from '@/lib/display';
 import { cn } from '@/lib/utils';
-import { TrendingUp, Flame, CheckCircle2 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useStoreData } from '@/hooks/useStoreData';
+import {
+  selectCoachInsights,
+  selectPersonalRecords,
+  selectPreviousWeekVolume,
+  selectSleepChartData,
+  selectTrainingStreak,
+  selectWeeklyTrainingData,
+} from '@/store/selectors';
+import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
+import { formatWeight } from '@/lib/units';
+import { HeatmapCalendar } from '@/components/HeatmapCalendar';
 
 export function Stats() {
-  const { sessions, sleepLogs } = useStore();
+  const storeData = useStoreData();
 
-  // Very basic streak mock calculation
-  const streak = 7; 
-
-  // Generate weekly timeline
-  const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday start
-  
-  const weeklyData = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = addDays(weekStart, i);
-      const isFuture = isAfter(d, today) && !isSameDay(d, today);
-      const daySessions = sessions.filter(s => isSameDay(new Date(s.date), d));
-      
-      const totalReps = daySessions.reduce((acc, session) => 
-        acc + session.logs.reduce((lAcc, l) => 
-          lAcc + l.sets.reduce((sAcc, s) => sAcc + s.reps, 0), 0), 0);
-          
-      // normalize reps for bar chart height (0-100%)
-      const height = Math.min(100, (totalReps / 200) * 100);
-      
-      return {
-        label: format(d, 'EEE').slice(0, 1),
-        totalReps,
-        height: isFuture ? 0 : height,
-        trained: daySessions.length > 0,
-        isFuture,
-        isToday: isSameDay(d, today)
-      };
-    });
-  }, [sessions, weekStart, today]);
-
-  const currentWeekVolume = weeklyData.reduce((acc, d) => acc + d.totalReps, 0);
-
-  // Sleep quality over last 7 days
-  const sleepData = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = subDays(today, 6 - i);
-      const log = sleepLogs.find(s => isSameDay(new Date(s.date), d));
-      return {
-        name: format(d, 'EEE').toUpperCase(),
-        score: log ? log.qualityScore : null
-      };
-    });
-  }, [sleepLogs, today]);
+  const streak = useMemo(() => selectTrainingStreak(storeData), [storeData]);
+  const weeklyData = useMemo(() => selectWeeklyTrainingData(storeData), [storeData]);
+  const previousWeekVolume = useMemo(() => selectPreviousWeekVolume(storeData), [storeData]);
+  const sleepChartData = useMemo(() => selectSleepChartData(storeData), [storeData]);
+  const insights = useMemo(() => selectCoachInsights(storeData), [storeData]);
+  const personalRecords = useMemo(() => selectPersonalRecords(storeData), [storeData]);
+  const { exercises } = useExerciseCatalog();
+  const currentWeekVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
+  const maxReps = Math.max(...weeklyData.map((day) => day.totalReps), 1);
+  const maxSleepScore = Math.max(...sleepChartData.map((day) => day.score ?? 0), 1);
 
   return (
-    <div className="h-full flex flex-col bg-[#080B11] overflow-hidden">
-      {/* Header */}
-      <header className="px-6 pt-12 pb-4 shrink-0">
-        <h1 className="text-3xl font-bold text-white tracking-tight leading-none">Activity</h1>
-        <p className="text-xs font-semibold text-zinc-500 mt-1 uppercase tracking-wider">Metrics & Insights</p>
+    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+      <header className="px-6 pt-10 pb-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Progreso</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Análisis de Desempeño</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-32 space-y-5 no-scrollbar">
+      <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-32">
+        <HeatmapCalendar />
         
         <div className="grid grid-cols-2 gap-4">
-          {/* Streak card */}
-          <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6 flex flex-col">
-             <TrendingUp className="w-5 h-5 text-[#6EE7B7] mb-4" />
-             <div className="text-4xl font-bold text-white leading-none">
-                {streak}
-             </div>
-             <div className="mt-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                Day Streak
-             </div>
+          <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+            <TrendingUp className="size-5 text-[#6EE7B7]" />
+            <p className="mt-4 text-4xl font-black leading-none text-white">{streak}</p>
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+              Racha de días
+            </p>
           </div>
-          
-          {/* Total Volume card */}
-          <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6 flex flex-col">
-             <Flame className="w-5 h-5 text-orange-400 mb-4" />
-             <div className="text-4xl font-bold text-white leading-none">
-                {currentWeekVolume}
-             </div>
-             <div className="mt-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                Unit Volume
-             </div>
+
+          <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+            <Flame className="size-5 text-orange-400" />
+            <p className="mt-4 text-4xl font-black leading-none text-white">{currentWeekVolume}</p>
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+              Reps esta semana
+            </p>
           </div>
         </div>
 
-        {/* Weekly Bars */}
-        <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-8">
-           <div className="flex justify-between items-center mb-10">
-              <h3 className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Weekly trend</h3>
-              <span className="text-[9px] text-[#6EE7B7] bg-[#6EE7B7]/10 px-2 py-1 rounded-md">Last 7 days</span>
-           </div>
-           
-           <div className="flex justify-between items-end h-[140px] px-2">
-             {weeklyData.map((d, i) => (
-                <div key={i} className="flex flex-col items-center gap-4">
-                   <div className="w-2.5 h-32 bg-white/5 rounded-full overflow-hidden flex items-end">
-                      <div 
-                        className={cn(
-                          "w-full transition-all duration-1000 rounded-full", 
-                          d.isToday ? "bg-[#6EE7B7]" : "bg-[#6EE7B7]/30"
-                        )}
-                        style={{ height: `${Math.max(10, d.height)}%` }}
-                      />
-                   </div>
-                   <span className={cn("text-[10px] font-bold", d.isToday ? "text-[#6EE7B7]" : "text-zinc-600")}>
-                     {d.label}
-                   </span>
+        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Volumen</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Esta semana vs. Anterior</h2>
+            </div>
+            <span className="rounded-2xl bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+              Ant. {previousWeekVolume}
+            </span>
+          </div>
+
+          <div className="mt-8 flex h-[180px] items-end justify-between gap-3">
+            {weeklyData.map((day) => (
+              <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
+                <div className="flex h-36 w-full items-end rounded-full bg-white/5 p-1">
+                  <div
+                    className={cn(
+                      'w-full rounded-full transition-all duration-700',
+                      day.isToday ? 'bg-[#6EE7B7]' : 'bg-[#6EE7B7]/35',
+                    )}
+                    style={{ height: `${day.isFuture ? 0 : Math.max(8, (day.totalReps / maxReps) * 100)}%` }}
+                  />
                 </div>
-             ))}
-           </div>
-        </div>
-
-        {/* Sleep Quality Chart */}
-        <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-8">
-           <h3 className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase mb-8">Sleep precision</h3>
-           <div className="h-[120px] w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <LineChart data={sleepData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                 <XAxis dataKey="name" hide />
-                 <YAxis axisLine={false} tickLine={false} tick={false} domain={[0, 100]} />
-                 <Tooltip 
-                   contentStyle={{ backgroundColor: '#121721', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '1.5rem', fontSize: '10px' }}
-                   itemStyle={{ color: '#6EE7B7', fontWeight: 'bold' }}
-                   formatter={(value: number) => [`${value}`, 'Score']}
-                 />
-                 <Line type="monotone" dataKey="score" stroke="#6EE7B7" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#6EE7B7', stroke: '#080B11', strokeWidth: 2 }} />
-               </LineChart>
-             </ResponsiveContainer>
-           </div>
-           <div className="flex justify-between mt-4 px-2">
-              {sleepData.map((d, i) => (
-                <span key={i} className="text-[9px] font-bold text-zinc-600">{d.name.slice(0, 1)}</span>
-              ))}
-           </div>
-        </div>
-
-        {/* Coach Analysis */}
-        <div className="space-y-3">
-           <h3 className="text-xl font-bold text-white tracking-tight mb-4 px-2">Performance review</h3>
-           <div className="space-y-3">
-              <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6 flex gap-4 items-center">
-                 <div className="w-12 h-12 bg-[#6EE7B7]/10 rounded-2xl flex items-center justify-center shrink-0">
-                    <TrendingUp className="w-6 h-6 text-[#6EE7B7]" />
-                 </div>
-                 <p className="text-xs leading-relaxed text-zinc-400">
-                   <strong className="text-zinc-100 font-bold">Good acceleration.</strong> Your intensity is up 12% from last week. Keep this pace for another 7 days.
-                 </p>
+                <div className="text-center">
+                  <p className={cn('text-[10px] font-bold uppercase tracking-[0.25em]', day.isToday ? 'text-[#6EE7B7]' : 'text-zinc-500')}>
+                    {day.label}
+                  </p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{day.totalReps}</p>
+                </div>
               </div>
+            ))}
+          </div>
+        </section>
 
-              <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6 flex gap-4 items-center">
-                 <div className="w-12 h-12 bg-orange-400/10 rounded-2xl flex items-center justify-center shrink-0">
-                    <Flame className="w-6 h-6 text-orange-400" />
-                 </div>
-                 <p className="text-xs leading-relaxed text-zinc-400">
-                   <strong className="text-zinc-100 font-bold">Rest imbalance.</strong> Recovery score is dropping. Add an extra hour of sleep tonight to compensate.
-                 </p>
+        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-center gap-3">
+            <Moon className="size-5 text-[#63B3ED]" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Descanso</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Calidad de Sueño</h2>
+            </div>
+          </div>
+
+          <div className="mt-8 flex h-[160px] items-end justify-between gap-3">
+            {sleepChartData.map((day) => (
+              <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
+                <div className="flex h-32 w-full items-end rounded-full bg-white/5 p-1">
+                  <div
+                    className="w-full rounded-full bg-[#63B3ED]/80 transition-all duration-700"
+                    style={{ height: `${day.score === null ? 10 : Math.max(10, (day.score / maxSleepScore) * 100)}%` }}
+                  />
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{day.name.slice(0, 1)}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{day.score ?? '--'}</p>
+                </div>
               </div>
-           </div>
-        </div>
+            ))}
+          </div>
+        </section>
+
+        {storeData.weightLogs.length > 0 && (
+          <section className="space-y-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Body</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Weight Trend</h2>
+            </div>
+            
+            <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-sm font-bold text-white">Current</p>
+                  <p className="text-2xl font-black text-[#6EE7B7]">{formatWeight(storeData.profile.weight, storeData.settings.unitSystem)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-white">Entries</p>
+                  <p className="text-xl font-black text-zinc-400">{storeData.weightLogs.length}</p>
+                </div>
+              </div>
+              
+              <div className="flex h-[120px] items-end gap-1">
+                {(() => {
+                  const logs = [...storeData.weightLogs].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)).slice(-10);
+                  const maxWeight = Math.max(...logs.map(l => l.weight), storeData.profile.weight);
+                  const minWeight = Math.min(...logs.map(l => l.weight), storeData.profile.weight) * 0.9;
+                  const range = maxWeight - minWeight;
+
+                  return logs.map((log) => {
+                    const heightPct = range === 0 ? 50 : Math.max(10, ((log.weight - minWeight) / range) * 100);
+                    return (
+                      <div key={log.id} className="flex flex-1 flex-col items-center gap-2 group relative">
+                        <div className="absolute -top-8 hidden whitespace-nowrap rounded-lg bg-black px-2 py-1 text-xs font-bold text-white group-hover:block z-10">
+                          {formatWeight(log.weight, storeData.settings.unitSystem)}
+                        </div>
+                        <div className="flex h-24 w-full items-end justify-center rounded-t-sm bg-white/5 transition-all hover:bg-white/10">
+                          <div
+                            className="w-full rounded-t-sm bg-white/80 transition-all duration-500"
+                            style={{ height: `${heightPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="space-y-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Insights</p>
+            <h2 className="mt-2 text-xl font-black tracking-tight text-white">What the data is saying</h2>
+          </div>
+
+          {insights.map((insight) => (
+            <article
+              key={insight.id}
+              className={cn(
+                'rounded-[2.5rem] border p-5',
+                insight.tone === 'warn'
+                  ? 'border-orange-400/20 bg-orange-400/5'
+                  : insight.tone === 'danger'
+                    ? 'border-red-400/20 bg-red-400/5'
+                    : 'border-[#6EE7B7]/20 bg-[#6EE7B7]/5',
+              )}
+            >
+              <p className="text-sm font-black text-white">{insight.title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{insight.body}</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Hitos</p>
+            <h2 className="mt-2 text-xl font-black tracking-tight text-white">Récords Personales</h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 mt-4">
+            {Object.keys(personalRecords).length === 0 ? (
+              <div className="rounded-[2rem] border border-dashed border-white/5 bg-black/10 px-5 py-8 text-center text-sm text-zinc-500">
+                Sigue entrenando para ver tus récords aquí.
+              </div>
+            ) : (
+              Object.entries(personalRecords)
+                .sort(([, a], [, b]) => (b as number) - (a as number))
+                .slice(0, 5)
+                .map(([exerciseId, maxWeight]) => {
+                  const exercise = exercises.find((e) => e.id === exerciseId);
+                  return (
+                    <div key={exerciseId} className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
+                      <span className="text-sm font-bold text-white">
+                        {exercise ? exercise.name : 'Unknown Exercise'}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                        {formatWeight(maxWeight as number, storeData.settings.unitSystem)}
+                      </span>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6 text-sm text-zinc-400">
+          <p className="font-semibold text-white">Current week anchor</p>
+          <p className="mt-2">{formatDayHeading(weeklyData[0]?.dayKey ?? '')}</p>
+        </section>
       </div>
     </div>
   );

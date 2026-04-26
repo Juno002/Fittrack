@@ -1,51 +1,75 @@
-import { ReactNode } from 'react';
-import { LayoutGrid, Dumbbell, Clock, TrendingUp } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Clock3, LayoutGrid, TrendingUp, Trophy } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
+
+export type AppTab = 'today' | 'library' | 'timeline' | 'stats';
 
 interface LayoutProps {
   children: ReactNode;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
+  draftName?: string;
+  onResumeDraft?: () => void;
 }
 
-export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const navItems = [
-    { id: 'today', label: 'HOY', icon: LayoutGrid },
-    { id: 'exercises', label: 'EJERCICIOS', icon: Dumbbell },
-    { id: 'log', label: 'REGISTRO', icon: Clock },
-    { id: 'stats', label: 'PROGRESO', icon: TrendingUp },
-  ];
+const NAV_ITEMS: { id: AppTab; label: string; icon: typeof LayoutGrid }[] = [
+  { id: 'today', label: 'Home', icon: LayoutGrid },
+  { id: 'library', label: 'Train', icon: Trophy },
+  { id: 'timeline', label: 'History', icon: Clock3 },
+  { id: 'stats', label: 'Stats', icon: TrendingUp },
+];
 
+export function Layout({
+  children,
+  activeTab,
+  setActiveTab,
+  draftName,
+  onResumeDraft,
+}: LayoutProps) {
   return (
-    <div className="flex flex-col h-screen bg-[#080B11] text-white font-sans">
-      <main className="flex-1 overflow-hidden max-w-md mx-auto w-full relative">
+    <div className="flex h-screen flex-col bg-[#080B11] font-sans text-white">
+      <main className="relative mx-auto flex w-full max-w-md flex-1 overflow-hidden">
         {children}
       </main>
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#080B11]/80 backdrop-blur-3xl border-t border-white/5 px-6 py-2 flex justify-between items-center max-w-md mx-auto w-full z-50 h-24">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.id;
+
+      {draftName && onResumeDraft ? (
+        <div className="fixed bottom-24 left-0 right-0 z-40 mx-auto flex w-full max-w-md justify-center px-6">
+          <button
+            type="button"
+            onClick={onResumeDraft}
+            className="flex w-full items-center justify-between rounded-[2rem] border border-[#6EE7B7]/20 bg-[#121721]/95 px-5 py-4 shadow-2xl shadow-black/40 backdrop-blur-xl"
+          >
+            <div className="text-left">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Draft session</p>
+              <p className="mt-1 truncate text-sm font-black text-white">{draftName}</p>
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7]">
+              Resume
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      <nav className="fixed bottom-0 left-0 right-0 z-50 mx-auto flex h-24 w-full max-w-md items-center justify-between border-t border-white/5 bg-[#080B11]/80 px-5 py-2 backdrop-blur-3xl">
+        {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
+          const isActive = activeTab === item.id;
 
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                "flex flex-col items-center gap-1.5 transition-all duration-500 rounded-[1.5rem] py-3 px-1 flex-1",
-                isActive ? "bg-white/5" : "hover:bg-white/5"
+                'flex flex-1 flex-col items-center gap-1.5 rounded-[1.5rem] px-2 py-3 transition-all duration-300',
+                isActive ? 'bg-white/5' : 'hover:bg-white/5',
               )}
             >
-              <div className={cn(
-                "transition-all duration-500",
-                isActive ? "text-[#6EE7B7] scale-110" : "text-zinc-600 group-hover:text-zinc-400"
-              )}>
-                <Icon className={cn("w-6 h-6", isActive && "animate-in zoom-in-90")} />
-              </div>
-              <span className={cn(
-                "text-[9px] font-bold tracking-widest transition-all duration-500 uppercase",
-                isActive ? "text-white" : "text-zinc-600 group-hover:text-zinc-400"
-              )}>
-                {item.id}
+              <Icon className={cn('size-5 transition-all', isActive ? 'scale-110 text-[#6EE7B7]' : 'text-zinc-600')} />
+              <span className={cn('text-[9px] font-bold uppercase tracking-[0.25em]', isActive ? 'text-white' : 'text-zinc-600')}>
+                {item.label}
               </span>
             </button>
           );

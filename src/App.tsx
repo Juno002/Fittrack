@@ -1,38 +1,70 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 
-import { useState } from 'react';
+import { Layout, type AppTab } from '@/components/Layout';
 import { useStore } from '@/store';
-import { Layout } from '@/components/Layout';
-import { Dashboard } from '@/views/Dashboard';
-import { Log } from '@/views/Log';
-import { Stats } from '@/views/Stats';
-import { Train } from '@/views/Train';
-import { Workouts } from '@/views/Workouts';
+
+const DashboardView = lazy(() => import('@/views/Dashboard').then((module) => ({ default: module.Dashboard })));
+const TrainView = lazy(() => import('@/views/Train').then((module) => ({ default: module.Train })));
+const LogView = lazy(() => import('@/views/Log').then((module) => ({ default: module.Log })));
+const StatsView = lazy(() => import('@/views/Stats').then((module) => ({ default: module.Stats })));
+const WorkoutsView = lazy(() => import('@/views/Workouts').then((module) => ({ default: module.Workouts })));
+import { Onboarding } from '@/views/Onboarding';
+
+function ViewFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-[#080B11] text-sm font-semibold text-zinc-500">
+      Loading Fittrack...
+    </div>
+  );
+}
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('today');
-  const { activeSession, setActiveSession } = useStore();
+  const draftSession = useStore((state) => state.draftSession);
+  const onboarded = useStore((state) => state.settings.onboarded);
+  const draftId = draftSession?.id ?? null;
+  const [activeTab, setActiveTab] = useState<AppTab>('today');
+  const [isWorkoutOpen, setIsWorkoutOpen] = useState(Boolean(draftSession));
+  const previousDraftId = useRef<string | null>(draftId);
 
-  if (activeSession) {
+  useEffect(() => {
+    if (!draftId) {
+      setIsWorkoutOpen(false);
+      previousDraftId.current = null;
+      return;
+    }
+
+    if (previousDraftId.current !== draftId) {
+      setIsWorkoutOpen(true);
+    }
+
+    previousDraftId.current = draftId;
+  }, [draftId]);
+
+  if (!onboarded) {
+    return <Onboarding />;
+  }
+
+  if (draftSession && isWorkoutOpen) {
     return (
-      <Workouts 
-        defaultLogs={activeSession.logs}
-        defaultName={activeSession.name}
-        defaultStartTime={activeSession.startTime}
-        onExit={() => setActiveSession(null)}
-      />
+      <Suspense fallback={<ViewFallback />}>
+        <WorkoutsView onExit={() => setIsWorkoutOpen(false)} />
+      </Suspense>
     );
   }
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-      {activeTab === 'today' && <Dashboard />}
-      {activeTab === 'exercises' && <Train />}
-      {activeTab === 'log' && <Log />}
-      {activeTab === 'stats' && <Stats />}
+    <Layout
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      draftName={draftSession ? (draftSession.name.trim() || 'Draft workout') : undefined}
+      onResumeDraft={draftSession ? () => setIsWorkoutOpen(true) : undefined}
+    >
+      <Suspense fallback={<ViewFallback />}>
+        {activeTab === 'today' ? <DashboardView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
+        {activeTab === 'library' ? <TrainView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
+        {activeTab === 'timeline' ? <LogView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
+        {activeTab === 'stats' ? <StatsView /> : null}
+      </Suspense>
     </Layout>
   );
 }

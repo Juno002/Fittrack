@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Fittrack
 
-# Run and deploy your AI Studio app
+Fittrack is a local-first workout prototype focused on real training data, recovery signals, nutrition logging, and sleep tracking. Every visible surface in the app is backed by persisted state instead of mock data.
 
-This contains everything you need to run your app locally.
+## What works today
 
-View your app in AI Studio: https://ai.studio/apps/13659c1f-0dcc-4268-9bd0-b38daa4d346d
+- Start, pause, resume, discard, and finish workout drafts.
+- Build sessions from the shared exercise catalog or custom exercises.
+- Persist workout history, nutrition entries, sleep logs, targets, and profile data in browser storage.
+- Drive dashboard, timeline, stats, and recovery views from the same state model.
 
-## Run Locally
+## Run locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js 20+
 
+1. Install dependencies with `npm install`
+2. Start the dev server with `npm run dev`
+3. Open [http://localhost:3000](http://localhost:3000)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Quality commands
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `npm run verify`

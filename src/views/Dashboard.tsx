@@ -1,255 +1,394 @@
-import { useEffect, useState, useMemo } from 'react';
-import { calculateFatigue, calculateFatigueAt, RECOVERY_HOURS } from '@/lib/fatigue';
-import { MuscleGroup, useStore, Exercise } from '@/store';
-import { Card, CardContent } from '@/components/ui/card';
-import { MuscleMap } from '@/components/MuscleMap';
-import { Settings, AlertTriangle, CheckCircle2, Info, Moon, Droplet, Flame, Footprints, ArrowRight } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // if we want Spanish date, but we can stick to English
-import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Settings, Download, Upload } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
+import { useStoreData } from '@/hooks/useStoreData';
+import { formatMuscleGroup } from '@/lib/display';
+import { getDisplayWeight, getStorageWeight } from '@/lib/units';
+import { buildWorkoutLog } from '@/lib/workout';
+import { useStore, type MacroGoal, type UserProfile } from '@/store';
+import type { MuscleGroup } from '@/store/types';
+import { selectDashboardCards } from '@/store/selectors';
 
-export function Dashboard() {
-  const { sessions, profile, updateProfile, foods, sleepLogs, exercises, setActiveSession } = useStore();
-  const [fatigue, setFatigue] = useState<Record<MuscleGroup, number> | null>(null);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [editProfile, setEditProfile] = useState(profile);
+const MuscleMap = lazy(() => import('@/components/MuscleMap').then((module) => ({ default: module.MuscleMap })));
+
+interface DashboardProps {
+  onOpenWorkout: () => void;
+}
+
+export function Dashboard({ onOpenWorkout }: DashboardProps) {
+  const data = useStoreData();
+  const startDraftSession = useStore((state) => state.startDraftSession);
+  const updateProfile = useStore((state) => state.updateProfile);
+  const setCalorieGoal = useStore((state) => state.setCalorieGoal);
+  const setMacrosGoal = useStore((state) => state.setMacrosGoal);
+  const { exercises } = useExerciseCatalog();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<UserProfile>(data.profile);
+  const [calorieDraft, setCalorieDraft] = useState(data.calorieGoal);
+  const [macroDraft, setMacroDraft] = useState<MacroGoal>(data.macrosGoal);
+  const [unitSystemDraft, setUnitSystemDraft] = useState(data.settings.unitSystem);
+  const [displayWeightDraft, setDisplayWeightDraft] = useState(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
+
+  const dashboardCards = useMemo(() => selectDashboardCards(data), [data]);
 
   useEffect(() => {
-    if (isProfileOpen) setEditProfile(profile);
-  }, [isProfileOpen, profile]);
-
-  const handleSaveProfile = () => {
-    updateProfile(editProfile);
-    setIsProfileOpen(false);
-  };
-
-  const startRecommended = (exerciseId: string) => {
-    const ex = exercises.find(e => e.id === exerciseId);
-    if (!ex) return;
-    
-    setActiveSession({
-      logs: [{
-        id: Math.random().toString(36).substring(7),
-        exerciseId: ex.id,
-        sets: [{ reps: 0, weight: 0 }],
-        isBodyweight: true
-      }],
-      name: `${ex.name} Focus`,
-      startTime: Date.now()
-    });
-  };
-
-  useEffect(() => {
-    setFatigue(calculateFatigue());
-    const interval = setInterval(() => {
-      setFatigue(calculateFatigue());
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [sessions]);
-
-  // Calories & Macros calc
-  const todayDate = new Date();
-  const todayStr = format(todayDate, 'yyyy-MM-dd');
-  const todayFoods = foods.filter(f => f.date.startsWith(todayStr));
-  const consumedCals = todayFoods.reduce((acc, f) => acc + f.calories, 0);
-
-  // Last sleep calc
-  const lastSleep = sleepLogs.length > 0 ? sleepLogs[sleepLogs.length - 1] : null;
-
-  const coachAdvice = useMemo(() => {
-    if (!fatigue) return null;
-    const entries = (Object.entries(fatigue) as [MuscleGroup, number][]).sort((a, b) => b[1] - a[1]);
-    const highest = entries[0];
-    
-    if (highest[1] > 70) {
-      const related = entries.find(e => e[0] !== highest[0] && e[1] > 60);
-      return {
-        level: 'danger',
-        title: `${highest[0]} ${related ? `and ${related[0]}` : ''} need rest.`,
-        body: `Accumulated fatigue is high (${Math.round(highest[1])}%). Train lower body or take an active recovery day.`
-      };
-    } else if (highest[1] > 40) {
-      return {
-        level: 'warn',
-        title: `Moderate fatigue in ${highest[0]}.`,
-        body: `You can train, but avoid taking sets to absolute failure to prevent CNS burnout.`
-      };
-    } else {
-      return {
-        level: 'good',
-        title: `Prime condition.`,
-        body: `All systems nominal. Perfect day for high-volume progression or hitting PRs.`
-      };
+    if (isSettingsOpen) {
+      setProfileDraft(data.profile);
+      setCalorieDraft(data.calorieGoal);
+      setMacroDraft(data.macrosGoal);
+      setUnitSystemDraft(data.settings.unitSystem);
+      setDisplayWeightDraft(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
     }
-  }, [fatigue]);
+  }, [data, isSettingsOpen]);
 
-  if (!fatigue) return null;
+  const recommendedExercises = useMemo(() => {
+    const muscleSet = new Set(dashboardCards.readiness.recommendedMuscles);
+    return exercises.filter((exercise) => muscleSet.has(exercise.muscleGroup)).slice(0, 4);
+  }, [dashboardCards.readiness.recommendedMuscles, exercises]);
+
+  const focusLabel = dashboardCards.readiness.recommendedMuscles
+    .map((muscle) => formatMuscleGroup(muscle))
+    .join(' + ');
+  const sleepProgress = dashboardCards.latestSleep
+    ? Math.min(100, (dashboardCards.latestSleep.durationHours / 8) * 100)
+    : 0;
+  const calorieProgress = data.calorieGoal > 0
+    ? Math.min(100, (dashboardCards.todaySummary.calories / data.calorieGoal) * 100)
+    : 0;
+
+  const handleStartWorkout = () => {
+    if (data.draftSession) {
+      onOpenWorkout();
+      return;
+    }
+
+    startDraftSession({
+      name: focusLabel ? `Focus: ${focusLabel}` : 'Training Session',
+      logs: recommendedExercises.slice(0, 2).map((exercise) => buildWorkoutLog(exercise)),
+    });
+    onOpenWorkout();
+  };
+
+  const handleExportData = () => {
+    const exportData = {
+      customExercises: data.customExercises,
+      sessions: data.sessions,
+      foods: data.foods,
+      sleepLogs: data.sleepLogs,
+      calorieGoal: data.calorieGoal,
+      macrosGoal: data.macrosGoal,
+      profile: data.profile,
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fittrack-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target?.result as string);
+        if (!importedData.profile || !importedData.sessions) {
+          throw new Error('Invalid backup file');
+        }
+        
+        if (window.confirm('This will overwrite your current data with the imported backup. Are you sure?')) {
+          useStore.setState(importedData);
+          setIsSettingsOpen(false);
+          window.location.reload();
+        }
+      } catch (err) {
+        alert('Failed to parse backup file. Please ensure it is a valid FitTrack backup.');
+        console.error('Import error:', err);
+      }
+      
+      // Reset input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
 
   return (
-    <div className="h-full flex flex-col bg-[#080B11] overflow-hidden relative">
-      {/* Header */}
-      <header className="px-6 pt-12 pb-4 flex justify-between items-end shrink-0">
+    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+      <header className="flex items-end justify-between px-6 pt-10 pb-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight leading-none">Today</h1>
-          <p className="text-xs font-semibold text-zinc-500 mt-1 uppercase tracking-wider">Readiness estimate</p>
+          <h1 className="text-3xl font-black tracking-tight text-white">Hola, Atleta</h1>
         </div>
-        <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-          <DialogTrigger
-            render={
-              <Button variant="ghost" size="icon" className="w-10 h-10 rounded-full bg-[#121721] text-zinc-400 hover:text-white border border-white/5 transition-all">
-                <Settings className="w-5 h-5" />
-              </Button>
-            }
-          />
-          <DialogContent className="bg-[#121721] border-white/5 text-white rounded-[2.5rem] p-6 max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold tracking-tight">Settings</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Age</Label>
-                  <Input 
-                    type="number" 
-                    value={editProfile.age} 
-                    onChange={e => setEditProfile({...editProfile, age: Number(e.target.value)})}
-                    className="bg-[#1A202C] border-none rounded-2xl h-14 font-bold text-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Weight (kg)</Label>
-                  <Input 
-                    type="number" 
-                    value={editProfile.weight} 
-                    onChange={e => setEditProfile({...editProfile, weight: Number(e.target.value)})}
-                    className="bg-[#1A202C] border-none rounded-2xl h-14 font-bold text-lg"
-                  />
-                </div>
-              </div>
-              <Button onClick={handleSaveProfile} className="w-full bg-[#6EE7B7] hover:bg-[#5FE7B0] text-black font-bold h-14 rounded-2xl text-lg transition-all active:scale-95">
-                Save & Update
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full bg-[#121721] text-zinc-400 hover:text-white"
+          onClick={() => setIsSettingsOpen(true)}
+        >
+          <Settings className="size-5" />
+        </Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-4 no-scrollbar">
-        
-        {/* Readiness Card */}
-        <div className="bg-[#121721] rounded-[2.5rem] p-8 border border-white/5 relative overflow-hidden group">
-          <div className="flex justify-between items-center relative z-10">
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-32">
+        <section className="overflow-hidden rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-start justify-between gap-6">
             <div>
-              <div className="text-[4rem] font-black text-white leading-none tracking-tighter">78%</div>
-              <div className="mt-2 flex flex-col">
-                <span className="text-[#6EE7B7] text-sm font-bold uppercase tracking-widest">Ready to train</span>
-                <span className="text-zinc-500 text-[10px] mt-0.5">Best focus: Legs + Core</span>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Readiness</p>
+              <p className="mt-3 text-[4rem] font-black leading-none tracking-tighter text-white">
+                {dashboardCards.readiness.readiness}%
+              </p>
+              <p className="mt-3 text-sm font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                {focusLabel || 'General recovery'}
+              </p>
+              <p className="mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
+                {dashboardCards.readiness.coachBody}
+              </p>
+            </div>
+
+            <div className="rounded-full border-[10px] border-[#1A202C] border-t-[#6EE7B7] p-6">
+              <div className="text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                  {dashboardCards.readiness.suggestedDurationMinutes} min
+                </p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  Suggestion
+                </p>
               </div>
             </div>
-            <div className="w-20 h-20 rounded-full border-[8px] border-[#1A202C] border-t-[#6EE7B7] flex items-center justify-center relative rotate-45 group-hover:scale-105 transition-transform duration-500">
-               <div className="text-xs font-bold text-[#6EE7B7] -rotate-45">28 min</div>
-            </div>
           </div>
-          
-          <Button 
-            onClick={() => startRecommended('e3')}
-            className="w-full mt-8 bg-[#6EE7B7] hover:bg-[#5FE7B0] text-[#080B11] font-black h-14 rounded-2xl text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/10"
+
+          <Button
+            className="mt-8 h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+            onClick={handleStartWorkout}
           >
-            Start workout
+            {data.draftSession ? 'Continuar sesión' : 'Comenzar sugerencia'}
           </Button>
 
-          <div className="mt-8 grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-               <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                 <span>Sleep</span>
-                 <span className="text-zinc-100">{lastSleep ? lastSleep.durationHours : '--'}h</span>
-               </div>
-               <div className="h-1 bg-[#1A202C] rounded-full overflow-hidden">
-                 <div className="h-full bg-[#63B3ED] rounded-full" style={{ width: `${Math.min(100, ((lastSleep?.durationHours || 0) / 8) * 100)}%` }} />
-               </div>
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                <span>Sleep</span>
+                <span className="text-zinc-100">
+                  {dashboardCards.latestSleep ? `${dashboardCards.latestSleep.durationHours}h` : '--'}
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1A202C]">
+                <div className="h-full rounded-full bg-[#63B3ED]" style={{ width: `${sleepProgress}%` }} />
+              </div>
             </div>
-            <div className="space-y-2">
-               <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                 <span>Food Log</span>
-                 <span className="text-zinc-100">{consumedCals}</span>
-               </div>
-               <div className="h-1 bg-[#1A202C] rounded-full overflow-hidden">
-                 <div className="h-full bg-[#F6AD55] rounded-full" style={{ width: `${Math.min(100, (consumedCals / 2500) * 100)}%` }} />
-               </div>
+            <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                <span>Calories</span>
+                <span className="text-zinc-100">{dashboardCards.todaySummary.calories}</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1A202C]">
+                <div className="h-full rounded-full bg-[#F6AD55]" style={{ width: `${calorieProgress}%` }} />
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Heatmap Card */}
-        <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6 relative overflow-hidden">
-           <div className="flex justify-between items-center mb-6">
-              <h3 className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Recovery map</h3>
-              <span className="text-[9px] text-zinc-500 bg-white/5 px-2 py-1 rounded-md">Estimated by zone</span>
-           </div>
-           
-           <div className="h-[280px] relative pointer-events-auto rounded-[2rem] overflow-hidden bg-black/20">
-             <MuscleMap fatigue={fatigue} />
-           </div>
+        <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Tu Cuerpo</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Fatiga Muscular</h2>
+            </div>
+          </div>
 
-           <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-6">
-              <div className="flex justify-between items-center">
-                 <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">Chest</span>
-                 <span className="text-[10px] text-zinc-100 font-bold">42%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                 <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">Arms</span>
-                 <span className="text-[10px] text-orange-400 font-bold">58%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                 <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">Core</span>
-                 <span className="text-[10px] text-emerald-400 font-bold">91%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                 <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">Legs</span>
-                 <span className="text-[10px] text-emerald-400 font-bold">84%</span>
-              </div>
-           </div>
-        </div>
+          <div className="h-[300px] overflow-hidden rounded-[2.25rem] bg-black/20">
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-500">Loading map...</div>}>
+              <MuscleMap fatigue={dashboardCards.readiness.fatigue} />
+            </Suspense>
+          </div>
 
-        {/* Recommendation Plan */}
-        <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-6">
-           <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-xl font-bold text-white tracking-tight mb-0.5">Today's plan</h3>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">28 min • no equipment</p>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            {(Object.entries(dashboardCards.readiness.fatigue) as [MuscleGroup, number][]).map(([muscleGroup, value]) => (
+              <div key={muscleGroup} className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  {formatMuscleGroup(muscleGroup)}
+                </span>
+                <span className="text-sm font-black text-white">{Math.round(value)}%</span>
               </div>
-           </div>
+            ))}
+          </div>
+        </section>
 
-           <div className="space-y-3">
-              {[
-                { name: 'Warm-up', time: '4 min', emoji: '🔥' },
-                { name: 'Squats', time: '8 min', emoji: '🦵' },
-                { name: 'Glute bridges', time: '6 min', emoji: '🌉' },
-                { name: 'Plank circuit', time: '7 min', emoji: '📏' },
-                { name: 'Cooldown', time: '3 min', emoji: '🧘' }
-              ].map((item, idx) => (
-                <div 
-                  key={idx}
-                  className="bg-[#1A202C]/50 rounded-2xl p-4 flex items-center justify-between border border-white/5 hover:bg-[#1A202C] transition-all cursor-pointer group"
-                >
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-sm group-hover:scale-110 transition-transform">{item.emoji}</div>
-                      <span className="text-sm font-bold text-white">{item.name}</span>
-                   </div>
-                   <span className="text-[10px] font-bold text-zinc-500 uppercase">{item.time}</span>
+        <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sugerencia</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Rutina Recomendada</h2>
+            </div>
+            <span className="rounded-2xl bg-[#6EE7B7]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+              {dashboardCards.readiness.suggestedDurationMinutes} min
+            </span>
+          </div>
+
+          {recommendedExercises.length === 0 ? (
+            <div className="mt-6 rounded-[2rem] border border-dashed border-white/5 bg-black/10 px-5 py-10 text-center text-sm text-zinc-500">
+              Registra algunos entrenamientos para que podamos recomendarte una rutina.
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {recommendedExercises.map((exercise) => (
+                <div key={exercise.id} className="flex items-center justify-between rounded-[2rem] border border-white/5 bg-black/10 px-4 py-4">
+                  <div>
+                    <p className="font-black text-white">{exercise.name}</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                      {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                    {Math.round(dashboardCards.readiness.fatigue[exercise.muscleGroup])}% fatigue
+                  </span>
                 </div>
               ))}
-           </div>
-
-           <Button className="w-full mt-6 bg-[#6EE7B7]/10 hover:bg-[#6EE7B7]/20 text-[#6EE7B7] font-bold h-14 rounded-2xl text-sm border border-[#6EE7B7]/20 transition-all active:scale-95">
-              Begin session
-           </Button>
-        </div>
+            </div>
+          )}
+        </section>
       </div>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] text-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">Settings & targets</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Age</Label>
+                <Input
+                  type="number"
+                  value={profileDraft.age}
+                  onChange={(event) => setProfileDraft((current) => ({ ...current, age: Number(event.target.value) }))}
+                  className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                    Weight ({unitSystemDraft === 'metric' ? 'kg' : 'lb'})
+                  </Label>
+                  <button
+                    onClick={() => {
+                      const nextSys = unitSystemDraft === 'metric' ? 'imperial' : 'metric';
+                      // If we switch, convert the draft display value to the other unit so the input looks right
+                      const rawKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
+                      setUnitSystemDraft(nextSys);
+                      setDisplayWeightDraft(getDisplayWeight(rawKg, nextSys));
+                    }}
+                    className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]"
+                  >
+                    Switch to {unitSystemDraft === 'metric' ? 'lb' : 'kg'}
+                  </button>
+                </div>
+                <Input
+                  type="number"
+                  value={displayWeightDraft}
+                  onChange={(event) => setDisplayWeightDraft(Number(event.target.value))}
+                  className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Height (cm)</Label>
+                <Input
+                  type="number"
+                  value={profileDraft.height}
+                  onChange={(event) => setProfileDraft((current) => ({ ...current, height: Number(event.target.value) }))}
+                  className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</Label>
+                <Input
+                  type="number"
+                  value={calorieDraft}
+                  onChange={(event) => setCalorieDraft(Number(event.target.value))}
+                  className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {(['protein', 'carbs', 'fat'] as const).map((macro) => (
+                <div key={macro} className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{macro}</Label>
+                  <Input
+                    type="number"
+                    value={macroDraft[macro]}
+                    onChange={(event) => setMacroDraft((current) => ({ ...current, [macro]: Number(event.target.value) }))}
+                    className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <Button
+              className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+              onClick={() => {
+                const finalWeightKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
+                const newProfile = { ...profileDraft, weight: finalWeightKg };
+                
+                updateProfile(newProfile);
+                useStore.getState().updateSettings({ unitSystem: unitSystemDraft });
+                
+                if (finalWeightKg !== data.profile.weight) {
+                  useStore.getState().logBodyWeight(finalWeightKg);
+                }
+                setCalorieGoal(calorieDraft);
+                setMacrosGoal(macroDraft);
+                setIsSettingsOpen(false);
+              }}
+            >
+              Save profile
+            </Button>
+
+            <div className="pt-6 mt-6 border-t border-white/5 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">Data Management</p>
+              
+              <Button
+                variant="outline"
+                className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
+                onClick={handleExportData}
+              >
+                <Download className="mr-2 h-4 w-4" /> Export Backup
+              </Button>
+              
+              <input
+                type="file"
+                accept=".json"
+                ref={fileInputRef}
+                onChange={handleImportData}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="mr-2 h-4 w-4" /> Import Backup
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

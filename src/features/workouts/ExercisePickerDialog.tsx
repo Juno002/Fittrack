@@ -1,0 +1,245 @@
+import { useDeferredValue, useMemo, useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
+import { formatMuscleGroup } from '@/lib/display';
+import { cn } from '@/lib/utils';
+import type { ExerciseDefinition, MuscleGroup } from '@/store/types';
+
+interface ExercisePickerDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (exercise: ExerciseDefinition) => void;
+  onCreateCustomExercise: (exercise: {
+    id: string;
+    name: string;
+    muscleGroup: MuscleGroup;
+    isBodyweight: boolean;
+    mechanic: string | null;
+  }) => void;
+}
+
+const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'] as const;
+
+export function ExercisePickerDialog({
+  open,
+  onOpenChange,
+  onSelect,
+  onCreateCustomExercise,
+}: ExercisePickerDialogProps) {
+  const { exercises, isLoading } = useExerciseCatalog();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('all');
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customMuscle, setCustomMuscle] = useState<MuscleGroup>('chest');
+  const [customBodyweight, setCustomBodyweight] = useState(false);
+  const deferredSearch = useDeferredValue(searchQuery);
+
+  const filteredExercises = useMemo(() => {
+    const normalizedSearch = deferredSearch.trim().toLowerCase();
+
+    return exercises
+      .filter((exercise) => (activeFilter === 'all' ? true : exercise.muscleGroup === activeFilter))
+      .filter((exercise) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        return (
+          exercise.name.toLowerCase().includes(normalizedSearch) ||
+          exercise.muscleGroup.toLowerCase().includes(normalizedSearch)
+        );
+      })
+      .slice(0, 80);
+  }, [activeFilter, deferredSearch, exercises]);
+
+  const resetCustomForm = () => {
+    setCustomName('');
+    setCustomMuscle('chest');
+    setCustomBodyweight(false);
+    setShowCustomForm(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[85vh] max-w-2xl overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
+        <DialogHeader className="px-8 pt-8 pb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <DialogTitle className="text-2xl font-black tracking-tight">
+                {showCustomForm ? 'Create custom exercise' : 'Add movement'}
+              </DialogTitle>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
+                {showCustomForm ? 'Persisted in your library' : 'Single shared catalog'}
+              </p>
+            </div>
+
+            <Button
+              variant="ghost"
+              className="rounded-2xl text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7] hover:bg-[#6EE7B7]/10 hover:text-[#6EE7B7]"
+              onClick={() => setShowCustomForm((current) => !current)}
+            >
+              {showCustomForm ? 'Browse catalog' : 'Custom exercise'}
+            </Button>
+          </div>
+        </DialogHeader>
+
+        {showCustomForm ? (
+          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 pb-8">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Exercise name</Label>
+              <Input
+                value={customName}
+                onChange={(event) => setCustomName(event.target.value)}
+                placeholder="Incline DB Press"
+                className="h-16 rounded-[1.75rem] border-none bg-[#1A202C] px-6 text-lg font-black text-white"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Target muscle</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {FILTERS.filter((muscle) => muscle !== 'all').map((muscle) => (
+                  <button
+                    key={muscle}
+                    type="button"
+                    className={cn(
+                      'rounded-[1.5rem] border px-4 py-4 text-sm font-bold uppercase tracking-[0.2em] transition-all',
+                      customMuscle === muscle
+                        ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
+                        : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/10 hover:text-zinc-200',
+                    )}
+                    onClick={() => setCustomMuscle(muscle)}
+                  >
+                    {formatMuscleGroup(muscle)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={cn(
+                'rounded-[1.5rem] border px-4 py-4 text-sm font-bold uppercase tracking-[0.2em] transition-all',
+                customBodyweight
+                  ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
+                  : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/10 hover:text-zinc-200',
+              )}
+              onClick={() => setCustomBodyweight((current) => !current)}
+            >
+              {customBodyweight ? 'Bodyweight movement' : 'Weighted movement'}
+            </button>
+
+            <div className="mt-auto grid gap-3 md:grid-cols-2">
+              <Button
+                variant="ghost"
+                className="h-14 rounded-[1.75rem] text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
+                onClick={resetCustomForm}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="h-14 rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+                disabled={!customName.trim()}
+                onClick={() => {
+                  onCreateCustomExercise({
+                    id: `custom-${customName.trim().toLowerCase().replace(/\s+/g, '-')}`,
+                    name: customName.trim(),
+                    muscleGroup: customMuscle,
+                    isBodyweight: customBodyweight,
+                    mechanic: null,
+                  });
+                  resetCustomForm();
+                  onOpenChange(false);
+                }}
+              >
+                Save to library
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4 px-8 pb-4">
+              <div className="flex items-center gap-3 rounded-[1.75rem] bg-[#1A202C] px-5 py-4">
+                <Search className="size-5 text-zinc-500" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search movements..."
+                  className="border-none bg-transparent p-0 text-lg font-bold text-white placeholder:text-zinc-700 focus-visible:ring-0"
+                />
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                {FILTERS.map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    className={cn(
+                      'shrink-0 rounded-2xl border px-4 py-2 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
+                      activeFilter === filter
+                        ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
+                        : 'border-transparent bg-white/5 text-zinc-500 hover:border-white/5 hover:text-zinc-300',
+                    )}
+                    onClick={() => setActiveFilter(filter)}
+                  >
+                    {filter === 'all' ? 'All' : formatMuscleGroup(filter)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 pb-8">
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center text-sm font-semibold text-zinc-500">
+                  Loading exercise catalog...
+                </div>
+              ) : filteredExercises.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[2rem] border border-dashed border-white/5 bg-white/5 text-center">
+                  <Search className="size-10 text-zinc-700" />
+                  <p className="text-sm font-semibold text-zinc-400">No exercises match that search yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredExercises.map((exercise) => (
+                    <button
+                      key={exercise.id}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-[2rem] border border-transparent bg-white/5 p-5 text-left transition-all hover:border-white/5 hover:bg-white/10"
+                      onClick={() => {
+                        onSelect(exercise);
+                        onOpenChange(false);
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-[#6EE7B7]">
+                          <ExerciseIcon name={exercise.iconName} className="size-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-black text-white">{exercise.name}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                            {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex size-8 items-center justify-center rounded-full bg-white/5 text-zinc-500 transition-all group-hover:bg-[#6EE7B7] group-hover:text-[#080B11]">
+                        <Plus className="size-4" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,176 +1,559 @@
-import { useState, useMemo } from 'react';
-import { useStore } from '@/store';
-import { format, subDays, startOfDay, isSameDay } from 'date-fns';
-import { Plus, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { useEffect, useMemo, useState } from 'react';
+import { CalendarPlus2, Pencil, Plus, Trash2 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useStoreData } from '@/hooks/useStoreData';
+import { formatClockLabel, formatDayHeading, formatDuration } from '@/lib/display';
+import { createId } from '@/lib/workout';
+import { cn } from '@/lib/utils';
+import { useStore, type FoodEntry, type SleepLog, type WorkoutSession } from '@/store';
+import { selectDaySummary, selectTimelineEntries, selectTodayDayKey } from '@/store/selectors';
+import { getRecentDayKeys } from '@/lib/dates';
 
-export function Log() {
-  const { sessions, sleepLogs, foods, setActiveSession } = useStore();
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [isAddOpen, setIsAddOpen] = useState(false);
+interface LogProps {
+  onOpenWorkout: () => void;
+}
 
-  // Generate last 6 days + today
-  const dates = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = subDays(new Date(), 6 - i);
-      const isSelected = isSameDay(d, selectedDate);
-      return {
-        date: d,
-        day: i === 6 ? 'HOY' : format(d, 'EEE').toUpperCase(),
-        num: format(d, 'd'),
-        hasData: sessions.some(s => isSameDay(new Date(s.date), d)),
-        isSelected
-      };
-    });
-  }, [selectedDate, sessions]);
+interface FoodEntryDialogProps {
+  open: boolean;
+  dayKey: string;
+  entry: FoodEntry | null;
+  onOpenChange: (open: boolean) => void;
+  onSave: (entry: FoodEntry) => void;
+}
 
-  // Data for selected day
-  const daySessions = useMemo(() => sessions.filter(s => isSameDay(new Date(s.date), selectedDate)), [sessions, selectedDate]);
-  const daySleep = useMemo(() => sleepLogs.find(s => isSameDay(new Date(s.date), selectedDate)), [sleepLogs, selectedDate]);
-  const dayFoods = useMemo(() => foods.filter(f => isSameDay(new Date(f.date), selectedDate)), [foods, selectedDate]);
-  const dayCals = dayFoods.reduce((acc, f) => acc + f.calories, 0);
+function FoodEntryDialog({
+  open,
+  dayKey,
+  entry,
+  onOpenChange,
+  onSave,
+}: FoodEntryDialogProps) {
+  const [draft, setDraft] = useState<FoodEntry>({
+    id: createId('food'),
+    dayKey,
+    consumedAt: new Date().toISOString(),
+    name: '',
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDraft(entry ?? {
+        id: createId('food'),
+        dayKey,
+        consumedAt: new Date().toISOString(),
+        name: '',
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+      });
+    }
+  }, [dayKey, entry, open]);
 
   return (
-    <div className="h-full flex flex-col bg-[#080B11] overflow-hidden relative">
-      {/* Header */}
-      <header className="px-6 pt-12 pb-4 shrink-0">
-        <h1 className="text-3xl font-bold text-white tracking-tight leading-none">History</h1>
-        <p className="text-xs font-semibold text-zinc-500 mt-1 uppercase tracking-wider">Training timeline</p>
-      </header>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] p-8 text-white">
+        <div className="space-y-6">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Nutrition</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
+              {entry ? 'Edit meal entry' : 'Add meal entry'}
+            </h2>
+          </div>
 
-      {/* Date Ribbon */}
-      <div className="flex gap-2 px-6 pb-6 overflow-x-auto no-scrollbar shrink-0">
-        {dates.map((d, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedDate(d.date)}
-            className={cn(
-              "flex flex-col items-center justify-center rounded-[2rem] border min-w-[50px] aspect-[1/1.6] transition-all shrink-0",
-              d.isSelected 
-                ? "bg-[#6EE7B7] border-[#6EE7B7] text-[#080B11]" 
-                : "bg-white/5 border-transparent text-zinc-500 hover:border-white/10"
-            )}
-          >
-            <span className={cn("text-[9px] font-bold tracking-widest uppercase", d.isSelected ? "text-[#080B11]/70" : "text-zinc-600")}>
-              {d.day.slice(0, 3)}
-            </span>
-            <span className={cn("text-xl font-bold leading-none mt-1", d.isSelected ? "text-[#080B11]" : "text-white")}>
-              {d.num}
-            </span>
-            <div className={cn("text-[8px] font-black mt-1", d.hasData ? (d.isSelected ? "text-[#080B11]/50" : "text-[#6EE7B7]") : "opacity-0")}>
-              •
+          <div className="space-y-2">
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Meal name</Label>
+            <Input
+              value={draft.name}
+              onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+              className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</Label>
+              <Input
+                type="number"
+                value={draft.calories}
+                onChange={(event) => setDraft((current) => ({ ...current, calories: Number(event.target.value) }))}
+                className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+              />
             </div>
-          </button>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Protein</Label>
+              <Input
+                type="number"
+                value={draft.protein}
+                onChange={(event) => setDraft((current) => ({ ...current, protein: Number(event.target.value) }))}
+                className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Carbs</Label>
+              <Input
+                type="number"
+                value={draft.carbs}
+                onChange={(event) => setDraft((current) => ({ ...current, carbs: Number(event.target.value) }))}
+                className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fat</Label>
+              <Input
+                type="number"
+                value={draft.fat}
+                onChange={(event) => setDraft((current) => ({ ...current, fat: Number(event.target.value) }))}
+                className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+              />
+            </div>
+          </div>
+
+          <Button
+            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+            disabled={!draft.name.trim()}
+            onClick={() => {
+              onSave({
+                ...draft,
+                dayKey,
+              });
+              onOpenChange(false);
+            }}
+          >
+            Save meal
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface SleepLogDialogProps {
+  open: boolean;
+  dayKey: string;
+  entry: SleepLog | null;
+  onOpenChange: (open: boolean) => void;
+  onSave: (entry: SleepLog) => void;
+}
+
+function SleepLogDialog({
+  open,
+  dayKey,
+  entry,
+  onOpenChange,
+  onSave,
+}: SleepLogDialogProps) {
+  const [draft, setDraft] = useState<SleepLog>({
+    id: createId('sleep'),
+    dayKey,
+    loggedAt: new Date().toISOString(),
+    durationHours: 8,
+    qualityScore: 80,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDraft(entry ?? {
+        id: createId('sleep'),
+        dayKey,
+        loggedAt: new Date().toISOString(),
+        durationHours: 8,
+        qualityScore: 80,
+      });
+    }
+  }, [dayKey, entry, open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-[2.5rem] border-white/5 bg-[#121721] p-8 text-white">
+        <div className="space-y-6">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Recovery</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
+              {entry ? 'Edit sleep log' : 'Add sleep log'}
+            </h2>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duration (hours)</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.5"
+              value={draft.durationHours}
+              onChange={(event) => setDraft((current) => ({ ...current, durationHours: Number(event.target.value) }))}
+              className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Quality score</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={draft.qualityScore}
+              onChange={(event) => setDraft((current) => ({ ...current, qualityScore: Number(event.target.value) }))}
+              className="h-14 rounded-2xl border-none bg-[#1A202C] text-lg font-black text-white"
+            />
+          </div>
+
+          <Button
+            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+            onClick={() => {
+              onSave({
+                ...draft,
+                dayKey,
+              });
+              onOpenChange(false);
+            }}
+          >
+            Save sleep log
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WorkoutTimelineCard({
+  session,
+  expanded,
+  onToggle,
+  onDelete,
+}: {
+  key?: string;
+  session: WorkoutSession;
+  expanded: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <article className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-5">
+      <div className="flex items-start justify-between gap-4">
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={onToggle}>
+          <p className="text-sm font-black text-white">{session.name}</p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+            {formatClockLabel(session.performedAt)} • {formatDuration(session.durationSeconds)} • Effort {session.effort}/5
+          </p>
+        </button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-2xl text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {session.logs.map((log) => (
+          <span key={log.id} className="rounded-2xl bg-black/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+            {log.exerciseName}
+          </span>
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-32 space-y-6 no-scrollbar">
-        {/* Workout section */}
-        <div>
-          <h3 className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase mb-4 px-3">
-            LOGGED ACTIVITIES
-          </h3>
-          
-          <div className="space-y-2">
-            {daySessions.length === 0 ? (
-              <div className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase px-3 py-12 bg-white/5 rounded-[2.5rem] border border-white/5 border-dashed text-center">
-                Nothing recorded
-              </div>
-            ) : (
-              daySessions.map(session => {
-                const totalReps = session.logs.reduce((acc, log) => acc + log.sets.reduce((sAcc, s) => sAcc + s.reps, 0), 0);
-                const fatigueAdded = Math.min(100, Math.round(totalReps * 0.8));
-
-                return (
-                  <div key={session.id} className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-5 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-xl">💪</div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-white leading-tight">{session.name || 'Strength Session'}</h4>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
-                        {session.logs.length} moves • {totalReps} total units
-                      </p>
-                    </div>
-                    <div className="text-[9px] font-bold text-[#F56565] shrink-0 bg-[#F56565]/10 px-2 py-1 rounded-lg">
-                      +{fatigueAdded}% fatigue
-                    </div>
+      {expanded ? (
+        <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
+          {session.logs.map((log) => (
+            <div key={log.id} className="rounded-[1.75rem] border border-white/5 bg-black/10 p-4">
+              <p className="font-black text-white">{log.exerciseName}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{log.muscleGroup}</p>
+              <div className="mt-3 space-y-2">
+                {log.sets.map((set, index) => (
+                  <div key={`${log.id}-${index}`} className="flex items-center justify-between rounded-2xl bg-white/5 px-3 py-3 text-sm text-zinc-300">
+                    <span>Set {index + 1}</span>
+                    <span>
+                      {log.isBodyweight ? '' : `${set.weight}kg • `}{set.reps} reps
+                    </span>
                   </div>
-                )
-              })
-            )}
-          </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+      ) : null}
+    </article>
+  );
+}
 
-        {/* Vitals section */}
-        <div className="space-y-2">
-          {/* Sleep */}
-          <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-5 flex items-center gap-4 opacity-60">
-            <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-xl">😴</div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-white leading-tight">Sleep</h4>
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
-                {daySleep ? `${daySleep.durationHours} hours` : 'No sync data'}
-              </p>
-            </div>
-            {daySleep && <CheckCircle2 className="w-5 h-5 text-[#6EE7B7]" />}
-          </div>
+export function Log({ onOpenWorkout }: LogProps) {
+  const storeData = useStoreData();
+  const draftSession = useStore((state) => state.draftSession);
+  const startDraftSession = useStore((state) => state.startDraftSession);
+  const deleteSession = useStore((state) => state.deleteSession);
+  const saveFoodEntry = useStore((state) => state.saveFoodEntry);
+  const deleteFoodEntry = useStore((state) => state.deleteFoodEntry);
+  const saveSleepLog = useStore((state) => state.saveSleepLog);
+  const deleteSleepLog = useStore((state) => state.deleteSleepLog);
+  const dayKeysWithData = useMemo(() => new Set([
+    ...storeData.sessions.map((session) => session.dayKey),
+    ...storeData.foods.map((food) => food.dayKey),
+    ...storeData.sleepLogs.map((sleepLog) => sleepLog.dayKey),
+  ]), [storeData.sessions, storeData.foods, storeData.sleepLogs]);
+  const [selectedDayKey, setSelectedDayKey] = useState(selectTodayDayKey());
+  const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [foodDialogEntry, setFoodDialogEntry] = useState<FoodEntry | null>(null);
+  const [sleepDialogEntry, setSleepDialogEntry] = useState<SleepLog | null>(null);
+  const [isFoodDialogOpen, setIsFoodDialogOpen] = useState(false);
+  const [isSleepDialogOpen, setIsSleepDialogOpen] = useState(false);
+  const daySummary = useMemo(() => selectDaySummary(storeData, selectedDayKey), [storeData, selectedDayKey]);
+  const timelineEntries = useMemo(() => selectTimelineEntries(storeData, selectedDayKey), [storeData, selectedDayKey]);
+  const recentDayKeys = useMemo(() => getRecentDayKeys(7), []);
 
-          {/* Calories */}
-          <div className="bg-[#121721] border border-white/5 rounded-[2.5rem] p-5 flex items-center gap-4 opacity-60">
-            <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-xl">🔥</div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-white leading-tight">Nutrition</h4>
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
-                {dayCals > 0 ? `${dayCals} kcal` : 'Incomplete'}
-              </p>
-            </div>
-            {dayCals > 0 && <CheckCircle2 className="w-5 h-5 text-[#6EE7B7]" />}
-          </div>
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+      <header className="px-6 pt-10 pb-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Timeline</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Real daily log</h1>
+        <p className="mt-2 text-sm text-zinc-400">{formatDayHeading(selectedDayKey)}</p>
+      </header>
+
+      <div className="flex gap-2 overflow-x-auto px-6 pb-4 no-scrollbar">
+        {recentDayKeys.map((dayKey) => {
+          const isSelected = dayKey === selectedDayKey;
+          const hasData = dayKeysWithData.has(dayKey);
+
+          return (
+            <button
+              key={dayKey}
+              type="button"
+              className={cn(
+                'flex min-w-[68px] shrink-0 flex-col items-center rounded-[2rem] border px-3 py-4 transition-all',
+                isSelected
+                  ? 'border-[#6EE7B7] bg-[#6EE7B7] text-[#080B11]'
+                  : 'border-transparent bg-white/5 text-zinc-500 hover:border-white/10',
+              )}
+              onClick={() => setSelectedDayKey(dayKey)}
+            >
+              <span className="text-[9px] font-bold uppercase tracking-[0.25em]">
+                {dayKey === selectTodayDayKey() ? 'TODAY' : dayKey.slice(8)}
+              </span>
+              <span className="mt-2 text-xs font-black tracking-[0.2em]">
+                {formatDayHeading(dayKey).slice(0, 3)}
+              </span>
+              <span className={cn('mt-2 text-[8px] font-black', hasData ? 'opacity-100' : 'opacity-0')}>•</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 px-4 pb-4">
+        <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sessions</p>
+          <p className="mt-2 text-2xl font-black text-white">{daySummary.sessions.length}</p>
+        </div>
+        <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calories</p>
+          <p className="mt-2 text-2xl font-black text-white">{daySummary.calories}</p>
+        </div>
+        <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sleep</p>
+          <p className="mt-2 text-2xl font-black text-white">
+            {daySummary.sleepLog ? `${daySummary.sleepLog.durationHours}h` : '--'}
+          </p>
         </div>
       </div>
 
-      {/* FAB add button */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogTrigger asChild>
-          <Button className="absolute bottom-28 right-8 w-14 h-14 bg-[#6EE7B7] rounded-full flex items-center justify-center text-[#080B11] shadow-2xl active:scale-95 transition-all outline-none p-0 border-none ring-0">
-            <Plus className="w-6 h-6" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="bg-[#121721] border-white/5 text-white max-w-[320px] rounded-[3rem] p-8 focus:outline-none shadow-2xl">
-           <h2 className="text-xl font-bold text-center mb-8 tracking-tight">Post progress</h2>
-           <div className="grid grid-cols-2 gap-4">
-              <button 
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-32">
+        {timelineEntries.length === 0 ? (
+          <div className="flex h-[40vh] flex-col items-center justify-center rounded-[2.5rem] border border-dashed border-white/5 bg-[#121721] px-8 text-center">
+            <CalendarPlus2 className="size-10 text-zinc-700" />
+            <h2 className="mt-4 text-2xl font-black tracking-tight text-white">Aún no hay registros</h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              Usa el botón inferior para registrar tu primer entrenamiento, comida o descanso.
+            </p>
+            <Button 
+              className="mt-6 rounded-[1.5rem] px-6 py-6 bg-white/5 text-white hover:bg-white/10"
+              onClick={() => setIsAddMenuOpen(true)}
+            >
+              <Plus className="mr-2 size-5 text-[#6EE7B7]" />
+              Agregar Registro
+            </Button>
+          </div>
+        ) : (
+          timelineEntries.map((entry) => {
+            if (entry.type === 'session') {
+              return (
+                <WorkoutTimelineCard
+                  key={entry.id}
+                  session={entry.session}
+                  expanded={expandedSessions[entry.session.id] ?? false}
+                  onToggle={() => setExpandedSessions((current) => ({ ...current, [entry.session.id]: !current[entry.session.id] }))}
+                  onDelete={() => deleteSession(entry.session.id)}
+                />
+              );
+            }
+
+            if (entry.type === 'food') {
+              return (
+                <article key={entry.id} className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-black text-white">{entry.food.name}</p>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                        {formatClockLabel(entry.food.consumedAt)} • {entry.food.calories} kcal
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-2xl text-zinc-500 hover:bg-white/5 hover:text-white"
+                        onClick={() => {
+                          setFoodDialogEntry(entry.food);
+                          setIsFoodDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-2xl text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                        onClick={() => deleteFoodEntry(entry.food.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    {[
+                      `${entry.food.protein}P`,
+                      `${entry.food.carbs}C`,
+                      `${entry.food.fat}F`,
+                    ].map((label) => (
+                      <span key={label} className="rounded-2xl bg-black/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              );
+            }
+
+            return (
+              <article key={entry.id} className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black text-white">Sleep block</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                      {entry.sleepLog.durationHours}h • quality {entry.sleepLog.qualityScore}/100
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-2xl text-zinc-500 hover:bg-white/5 hover:text-white"
+                      onClick={() => {
+                        setSleepDialogEntry(entry.sleepLog);
+                        setIsSleepDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-2xl text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                      onClick={() => deleteSleepLog(entry.sleepLog.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-md justify-end px-6 pb-8">
+        <Button
+          className="size-14 rounded-full bg-[#6EE7B7] p-0 text-[#080B11] shadow-2xl hover:bg-[#5FE7B0]"
+          onClick={() => setIsAddMenuOpen(true)}
+        >
+          <Plus className="size-6" />
+        </Button>
+      </div>
+
+      <Dialog open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+        <DialogContent className="max-w-sm rounded-[2.75rem] border-white/5 bg-[#121721] p-8 text-white">
+          <div className="space-y-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Add real data</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Choose the entry type</h2>
+            </div>
+
+            <div className="grid gap-3">
+              <Button
+                className="h-14 rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
                 onClick={() => {
-                  setIsAddOpen(false);
-                  setActiveSession({ logs: [], name: '', startTime: Date.now() });
+                  setIsAddMenuOpen(false);
+                  if (draftSession) {
+                    onOpenWorkout();
+                    return;
+                  }
+                  startDraftSession({ name: 'Training Session' });
+                  onOpenWorkout();
                 }}
-                className="bg-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/10 transition-all border border-transparent active:scale-95"
               >
-                 <span className="text-3xl">💪</span>
-                 <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Workout</span>
-              </button>
-              <button 
-                className="bg-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-3 opacity-30 cursor-not-allowed"
+                Workout
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-14 rounded-[1.75rem] bg-white/5 text-[10px] font-bold uppercase tracking-[0.25em] text-white hover:bg-white/10"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  setFoodDialogEntry(null);
+                  setIsFoodDialogOpen(true);
+                }}
               >
-                 <span className="text-3xl">😴</span>
-                 <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Sleep</span>
-              </button>
-              <button 
-                className="bg-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-3 opacity-30 cursor-not-allowed"
+                Meal
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-14 rounded-[1.75rem] bg-white/5 text-[10px] font-bold uppercase tracking-[0.25em] text-white hover:bg-white/10"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  setSleepDialogEntry(null);
+                  setIsSleepDialogOpen(true);
+                }}
               >
-                 <span className="text-3xl">🔥</span>
-                 <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Meal</span>
-              </button>
-              <button 
-                className="bg-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-3 opacity-30 cursor-not-allowed"
-              >
-                 <span className="text-3xl">💧</span>
-                 <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Water</span>
-              </button>
-           </div>
+                Sleep
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
+
+      <FoodEntryDialog
+        open={isFoodDialogOpen}
+        dayKey={selectedDayKey}
+        entry={foodDialogEntry}
+        onOpenChange={setIsFoodDialogOpen}
+        onSave={saveFoodEntry}
+      />
+      <SleepLogDialog
+        open={isSleepDialogOpen}
+        dayKey={selectedDayKey}
+        entry={sleepDialogEntry}
+        onOpenChange={setIsSleepDialogOpen}
+        onSave={saveSleepLog}
+      />
     </div>
   );
 }

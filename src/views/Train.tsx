@@ -1,129 +1,255 @@
-import { useState, useMemo } from 'react';
-import { useStore, MuscleGroup } from '@/store';
-import { calculateFatigueAt } from '@/lib/fatigue';
-import { cn } from '@/lib/utils';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { Trophy } from 'lucide-react';
 
-interface ExerciseDef {
-  id: string;
-  name: string;
-  thumb: string;
-  primary: MuscleGroup;
-  secondary: MuscleGroup[];
-  mechanic: string;
-  desc: string;
+import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
+import { useStoreData } from '@/hooks/useStoreData';
+import { formatMuscleGroup } from '@/lib/display';
+import { buildWorkoutLog } from '@/lib/workout';
+import { useStore } from '@/store';
+import { selectFatigueSummary } from '@/store/selectors';
+import type { ExerciseDefinition, MuscleGroup, WorkoutTemplate } from '@/store/types';
+import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { ExerciseDetail } from '@/components/ExerciseDetail';
+
+interface TrainProps {
+  onOpenWorkout: () => void;
 }
 
-const EXERCISES: ExerciseDef[] = [
-  { id: 'pushups', name: 'Push-ups', thumb: '💪', primary: 'chest', secondary: ['arms', 'shoulders', 'core'], mechanic: 'Compound', desc: 'Plank position, lower until chest almost touches ground, push up explosively.' },
-  { id: 'squats', name: 'Squats', thumb: '🦵', primary: 'legs', secondary: ['core'], mechanic: 'Compound', desc: 'Feet shoulder-width, lower until parallel, knees aligned with toes.' },
-  { id: 'aus_pullups', name: 'Australian Pull-ups', thumb: '🧗', primary: 'back', secondary: ['arms'], mechanic: 'Compound', desc: 'Bar at hip height, body straight like a plank, pull chest to bar.' },
-  { id: 'glute_bridge', name: 'Glute Bridge', thumb: '🌉', primary: 'legs', secondary: ['core'], mechanic: 'Isolation', desc: 'Lying on back, knees bent, squeeze glutes to elevate hips.' },
-  { id: 'pullups', name: 'Pull-ups', thumb: '⏫', primary: 'back', secondary: ['arms'], mechanic: 'Compound', desc: 'Hang from bar, pull body up until chin clears the bar.' },
-  { id: 'dips', name: 'Dips', thumb: '🤸', primary: 'arms', secondary: ['chest', 'shoulders'], mechanic: 'Compound', desc: 'Support body on parallel bars, lower until shoulders are below elbows, push up.' },
-  { id: 'pike_hspu', name: 'Pike Push-ups', thumb: '🔺', primary: 'shoulders', secondary: ['arms', 'chest'], mechanic: 'Compound', desc: 'Inverted V position, lower head to ground, push back up.' },
-  { id: 'lunges', name: 'Lunges', thumb: '🚶', primary: 'legs', secondary: ['core'], mechanic: 'Compound', desc: 'Step forward, lower rear knee to ground, push back to start.' },
-  { id: 'plank', name: 'Plank', thumb: '📏', primary: 'core', secondary: ['shoulders'], mechanic: 'Isometric', desc: 'Support body on forearms and toes, keep body in a straight line.' },
-];
+const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
 
-export function Train() {
-  const { setActiveSession, exercises, addExercise } = useStore();
-  const [filter, setFilter] = useState<'All' | 'Chest' | 'Back' | 'Legs' | 'Shoulders' | 'Core' | 'Arms'>('All');
-  
-  const fatigue = calculateFatigueAt(new Date());
+export function Train({ onOpenWorkout }: TrainProps) {
+  const { exercises, isLoading } = useExerciseCatalog();
+  const data = useStoreData();
+  const fatigue = useMemo(
+    () => selectFatigueSummary(data),
+    [data],
+  );
+  const draftSession = useStore((state) => state.draftSession);
+  const startDraftSession = useStore((state) => state.startDraftSession);
+  const addExerciseToDraft = useStore((state) => state.addExerciseToDraft);
+  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition | null>(null);
+  const deferredQuery = useDeferredValue(searchQuery);
 
   const filteredExercises = useMemo(() => {
-    if (filter === 'All') return EXERCISES;
-    return EXERCISES.filter(ex => {
-      if (filter === 'Chest') return ex.primary === 'chest' || ex.secondary.includes('chest');
-      if (filter === 'Back') return ex.primary === 'back' || ex.secondary.includes('back');
-      if (filter === 'Legs') return ex.primary === 'legs' || ex.secondary.includes('legs');
-      if (filter === 'Shoulders') return ex.primary === 'shoulders' || ex.secondary.includes('shoulders');
-      if (filter === 'Core') return ex.primary === 'core' || ex.secondary.includes('core');
-      if (filter === 'Arms') return ex.primary === 'arms' || ex.secondary.includes('arms');
-      return true;
-    });
-  }, [filter]);
+    const normalizedQuery = deferredQuery.trim().toLowerCase();
 
-  const handleStartExercise = (ex: ExerciseDef) => {
-    if (!exercises.find(e => e.id === ex.id)) {
-      addExercise({
-        id: ex.id,
-        name: ex.name,
-        muscleGroup: ex.primary,
-        isBodyweight: true,
-        iconName: 'Flame'
-      });
-    }
+    return exercises.filter((exercise) => {
+      if (activeFilter !== 'all' && exercise.muscleGroup !== activeFilter) {
+        return false;
+      }
 
-    setActiveSession({
-      logs: [{
-        id: Math.random().toString(36).substring(7),
-        exerciseId: ex.id,
-        sets: [{ reps: 0, weight: 0 }],
-        isBodyweight: true
-      }],
-      name: `${ex.name} Focus`,
-      startTime: Date.now()
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return (
+        exercise.name.toLowerCase().includes(normalizedQuery) ||
+        exercise.muscleGroup.toLowerCase().includes(normalizedQuery)
+      );
     });
+  }, [activeFilter, deferredQuery, exercises]);
+
+  const handleSelectExercise = (exercise: ExerciseDefinition) => {
+    setSelectedExercise(exercise);
   };
 
-  const filters = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Core', 'Arms'] as const;
+  const handleAddWorkout = (exercise: ExerciseDefinition) => {
+    if (draftSession) {
+      addExerciseToDraft(exercise);
+      onOpenWorkout();
+      return;
+    }
+
+    startDraftSession({
+      name: `${exercise.name} Focus`,
+      logs: [buildWorkoutLog(exercise)],
+    });
+    onOpenWorkout();
+  };
+
+  const handleStartTemplate = (template: WorkoutTemplate) => {
+    if (draftSession) {
+      if (!window.confirm('Starting a template will discard your current draft. Proceed?')) return;
+    }
+    
+    // Copy the logs and reset their IDs to prevent reusing IDs in new sessions
+    const freshLogs = template.logs.map(log => ({
+      ...log,
+      id: crypto.randomUUID(),
+      sets: log.sets.map(set => ({ ...set, completed: false }))
+    }));
+
+    startDraftSession({
+      name: template.name,
+      logs: freshLogs,
+    });
+    onOpenWorkout();
+  };
+
+  const [viewMode, setViewMode] = useState<'catalog' | 'templates'>('catalog');
 
   return (
-    <div className="h-full flex flex-col bg-[#080B11] overflow-hidden">
-      {/* Header */}
-      <header className="px-6 pt-12 pb-4 shrink-0">
-        <h1 className="text-3xl font-bold text-white tracking-tight leading-none">Library</h1>
-        <p className="text-xs font-semibold text-zinc-500 mt-1 uppercase tracking-wider">Exercise database</p>
+    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+      <header className="px-6 pt-10 pb-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Entrenar</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Ejercicios & Rutinas</h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          Explora movimientos, mira tutoriales visuales o inicia tus plantillas guardadas.
+        </p>
       </header>
 
-      {/* Filters */}
-      <div className="flex gap-2 px-6 pb-4 overflow-x-auto no-scrollbar shrink-0">
-        {filters.map(f => (
+      <div className="flex px-6 pb-4">
+        <div className="flex w-full rounded-2xl bg-[#121721] p-1">
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            type="button"
             className={cn(
-              "text-[10px] font-bold tracking-widest px-5 py-2.5 rounded-[1rem] border transition-all shrink-0 uppercase",
-              filter === f 
-                ? "bg-[#6EE7B7] border-[#6EE7B7] text-[#080B11]" 
-                : "bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-300 hover:border-white/10"
+              'flex-1 rounded-xl py-2.5 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
+              viewMode === 'catalog' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'
             )}
+            onClick={() => setViewMode('catalog')}
           >
-            {f}
+            Catálogo
           </button>
-        ))}
+          <button
+            type="button"
+            className={cn(
+              'flex-1 rounded-xl py-2.5 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
+              viewMode === 'templates' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'
+            )}
+            onClick={() => setViewMode('templates')}
+          >
+            Plantillas ({data.templates.length})
+          </button>
+        </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-2 no-scrollbar">
-        {filteredExercises.map(ex => {
-          const mainFatigue = fatigue[ex.primary];
-          const isFatigued = mainFatigue > 60;
+      {viewMode === 'catalog' ? (
+        <>
+          <div className="px-6 pb-4">
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Buscar ejercicios..."
+              className="h-14 rounded-[1.75rem] border-none bg-[#121721] px-5 text-base font-bold text-white placeholder:text-zinc-700"
+            />
+          </div>
 
-          return (
-            <div 
-              key={ex.id} 
-              onClick={() => handleStartExercise(ex)}
-              className="bg-[#121721] border border-white/5 rounded-[2rem] p-5 flex items-center gap-4 cursor-pointer hover:border-[#6EE7B7]/30 transition-all active:scale-[0.98] group"
-            >
-               <div className="w-12 h-12 bg-white/5 rounded-2xl shrink-0 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
-                 {ex.thumb}
-               </div>
-               <div className="flex-1 min-w-0">
-                 <h3 className="text-sm font-bold text-white">{ex.name}</h3>
-                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
-                   {ex.primary} • {isFatigued ? 'Fatigued' : 'Ready'}
-                 </p>
-               </div>
-               <div className={cn(
-                 "w-2 h-2 rounded-full",
-                 isFatigued ? "bg-[#F56565]" : "bg-[#6EE7B7]"
-               )} />
+          <div className="flex gap-2 overflow-x-auto px-6 pb-4 no-scrollbar">
+            {FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={cn(
+                  'shrink-0 rounded-2xl border px-4 py-2 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
+                  activeFilter === filter
+                    ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
+                    : 'border-transparent bg-white/5 text-zinc-500 hover:border-white/5 hover:text-zinc-300',
+                )}
+                onClick={() => setActiveFilter(filter)}
+              >
+                {filter === 'all' ? 'All' : formatMuscleGroup(filter)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 pb-32">
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center text-sm font-semibold text-zinc-500">
+                Loading catalog...
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredExercises.map((exercise) => {
+                  const exerciseFatigue = fatigue[exercise.muscleGroup];
+                  const statusLabel = exerciseFatigue >= 70 ? 'Recover first' : exerciseFatigue >= 45 ? 'Moderate fatigue' : 'Ready';
+
+                  return (
+                    <button
+                      key={exercise.id}
+                      type="button"
+                      className="flex w-full items-center gap-4 rounded-[2rem] border border-white/5 bg-[#121721] p-5 text-left transition-all hover:border-[#6EE7B7]/30 hover:bg-[#151c29]"
+                      onClick={() => handleSelectExercise(exercise)}
+                    >
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-[#6EE7B7]">
+                        <ExerciseIcon name={exercise.iconName} className="size-6" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-white">{exercise.name}</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                          {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fatigue</p>
+                        <p className="mt-1 text-sm font-black text-white">{Math.round(exerciseFatigue)}%</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">{statusLabel}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 overflow-y-auto px-4 pb-32">
+          {data.templates.length === 0 ? (
+            <div className="mt-6 flex flex-col items-center justify-center rounded-[2.5rem] border border-dashed border-white/5 bg-[#121721] px-5 py-16 text-center">
+              <Trophy className="mb-4 size-10 text-zinc-700" />
+              <h2 className="text-xl font-black text-white">Sin plantillas aún</h2>
+              <p className="mt-2 text-sm text-zinc-500">
+                Guarda tus entrenamientos favoritos como plantillas para repetirlos fácilmente.
+              </p>
             </div>
-          )
-        })}
-      </div>
+          ) : (
+            <div className="space-y-4">
+              {data.templates.map((template) => (
+                <div key={template.id} className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-black text-white">{template.name}</h3>
+                    <button 
+                      onClick={() => useStore.getState().deleteTemplate(template.id)}
+                      className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-300"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  
+                  <div className="mb-6 space-y-1">
+                    {template.logs.map(log => (
+                      <p key={log.id} className="text-sm text-zinc-400">
+                        <span className="font-bold text-zinc-300">{log.sets.length}x</span> {log.exerciseName}
+                      </p>
+                    ))}
+                  </div>
+
+                  <button
+                    className="h-12 w-full rounded-[1.5rem] bg-[#6EE7B7]/10 text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7] hover:bg-[#6EE7B7]/20"
+                    onClick={() => handleStartTemplate(template)}
+                  >
+                    Start Routine
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <ExerciseDetail
+        exercise={selectedExercise}
+        open={selectedExercise !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedExercise(null);
+        }}
+        onAddWorkout={handleAddWorkout}
+      />
     </div>
   );
 }
