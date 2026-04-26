@@ -68,7 +68,7 @@ export function ExercisePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[85vh] max-w-2xl overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
+      <DialogContent className="flex h-[85vh] max-w-2xl flex-col overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
         <DialogHeader className="px-8 pt-8 pb-4">
           <div className="flex items-center justify-between gap-4">
             <div>

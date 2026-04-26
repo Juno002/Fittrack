@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Play, Plus } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Play, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ interface ExerciseDetailProps {
 
 export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: ExerciseDetailProps) {
   const data = useStoreData();
+  const [showInstructions, setShowInstructions] = useState(false);
   const history = useMemo(() => {
     if (!exercise) return [];
     return selectExerciseHistory(data, exercise.id);
@@ -65,6 +66,34 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
             <Play className="mr-2 h-4 w-4 text-[#6EE7B7]" />
             Ver Video Tutorial
           </Button>
+
+          {exercise.instructions && exercise.instructions.length > 0 && (
+            <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4 transition-all">
+              <button
+                className="flex w-full items-center justify-between"
+                onClick={() => setShowInstructions((s) => !s)}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
+                  Instrucciones Paso a Paso
+                </p>
+                {showInstructions ? (
+                  <ChevronUp className="h-4 w-4 text-zinc-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-zinc-500" />
+                )}
+              </button>
+              {showInstructions && (
+                <div className="mt-4 space-y-3 border-t border-white/5 pt-3">
+                  {exercise.instructions.map((step, index) => (
+                    <div key={index} className="flex gap-3 text-sm text-zinc-300">
+                      <span className="font-black text-[#6EE7B7]">{index + 1}.</span>
+                      <p className="leading-relaxed">{step}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">

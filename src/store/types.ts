@@ -28,6 +28,7 @@ export interface ExerciseCatalogEntry {
   muscleGroup: MuscleGroup;
   isBodyweight: boolean;
   mechanic: string | null;
+  instructions?: string[];
 }
 
 export interface ExerciseDefinition extends ExerciseCatalogEntry {
