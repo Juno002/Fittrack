@@ -1,0 +1,6 @@
+{
+  "name": "FitTrack Local",
+  "description": "A privacy-first, local-only fitness tracker with muscle fatigue mapping and calorie counting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
