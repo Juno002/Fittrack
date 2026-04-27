@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, PlayCircle, Plus } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowLeft, ArrowDown, ArrowUp, XCircle, Heart, MoreVertical, Play, ExternalLink, Shield } from 'lucide-react';
 
-import { ExerciseMotionPreview } from '@/components/ExerciseMotionPreview';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { formatMuscleGroup } from '@/lib/display';
-import { resolveExerciseCoach } from '@/lib/exerciseCoach';
-import { selectExerciseHistory } from '@/store/selectors';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useStoreData } from '@/hooks/useStoreData';
+import { formatMuscleGroup } from '@/lib/display';
+import { selectFatigueSummary } from '@/store/selectors';
 import type { ExerciseDefinition } from '@/store/types';
+import { MuscleHighlight } from '@/components/MuscleHighlight';
 
 interface ExerciseDetailProps {
   exercise: ExerciseDefinition | null;
@@ -17,263 +16,278 @@ interface ExerciseDetailProps {
   onAddWorkout: (exercise: ExerciseDefinition) => void;
 }
 
-type DetailTab = 'how' | 'mistakes' | 'progression' | 'video';
-
-function getDifficultyClasses(difficulty: string) {
-  if (difficulty === 'Elite') {
-    return 'border-red-400/20 bg-red-400/10 text-red-100';
-  }
-
-  if (difficulty === 'Advanced') {
-    return 'border-amber-400/20 bg-amber-400/10 text-amber-100';
-  }
-
-  if (difficulty === 'Intermediate') {
-    return 'border-[#6EE7B7]/20 bg-[#6EE7B7]/10 text-[#C8FFE8]';
-  }
-
-  return 'border-white/10 bg-white/5 text-zinc-300';
-}
-
 export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: ExerciseDetailProps) {
+  const [activeTab, setActiveTab] = useState<'como' | 'errores' | 'progresiones' | 'video'>('como');
   const data = useStoreData();
-  const [activeTab, setActiveTab] = useState<DetailTab>('how');
+  
+  const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
+  
+  if (!exercise) return null;
 
-  useEffect(() => {
-    if (open) {
-      setActiveTab('how');
-    }
-  }, [exercise?.id, open]);
-
-  const history = useMemo(() => {
-    if (!exercise) return [];
-    return selectExerciseHistory(data, exercise.id);
-  }, [data, exercise]);
-
-  const coach = useMemo(() => {
-    if (!exercise) return null;
-    return resolveExerciseCoach(exercise);
-  }, [exercise]);
-
-  const progressSnapshot = useMemo(() => {
-    const sessionsLogged = history.length;
-    const bestSetReps = history.reduce((best, entry) => Math.max(best, entry.bestReps), 0);
-    const totalTrackedReps = history.reduce((total, entry) => total + entry.totalReps, 0);
-
-    return {
-      sessionsLogged,
-      bestSetReps,
-      totalTrackedReps,
-      recent: [...history].reverse().slice(0, 4),
-    };
-  }, [history]);
-
-  if (!exercise || !coach) return null;
-
-  const openYoutube = () => {
-    window.open(
-      `https://www.youtube.com/results?search_query=${encodeURIComponent(coach.youtubeQuery)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  };
+  const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
+  const isReady = exerciseFatigue < 45;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] max-w-md flex-col overflow-hidden rounded-[2.75rem] border-white/5 bg-[#121721] p-0 text-white">
-        <DialogHeader className="shrink-0 border-b border-white/5 px-6 pt-6 pb-4">
-          <div className="space-y-4 text-left">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Ejercicio</p>
-              <DialogTitle className="mt-2 text-3xl font-black tracking-tight text-white">{exercise.name}</DialogTitle>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-300">
-                {formatMuscleGroup(exercise.muscleGroup)}
-              </span>
-              <span className={`rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] ${getDifficultyClasses(coach.difficulty)}`}>
-                {coach.difficulty}
-              </span>
-              <span className="rounded-full border border-[#6EE7B7]/15 bg-[#6EE7B7]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-[#C8FFE8]">
-                {coach.noEquipment ? 'Sin equipo' : 'Peso corporal'}
-              </span>
-            </div>
+      <DialogContent 
+        showCloseButton={false} 
+        className="!fixed !inset-0 !translate-x-0 !translate-y-0 !w-full !max-w-full !h-[100dvh] sm:!max-w-full !rounded-none !border-none !bg-[#080B11] !p-0 !flex !flex-col !gap-0 text-white ring-0 z-50"
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between px-4 py-4 z-10 bg-[#080B11]">
+          <button 
+            type="button"
+            className="flex size-10 items-center justify-center rounded-full bg-white/5 text-white hover:bg-white/10"
+            onClick={() => onOpenChange(false)}
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+          
+          <div className="flex gap-2">
+            <button className="flex size-10 items-center justify-center rounded-full bg-white/5 text-white hover:bg-white/10">
+              <Heart className="size-5" />
+            </button>
+            <button className="flex size-10 items-center justify-center rounded-full bg-white/5 text-white hover:bg-white/10">
+              <MoreVertical className="size-5" />
+            </button>
           </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28">
-          <section className="mt-4">
-            <ExerciseMotionPreview demoKey={coach.demoKey} />
-            <p className="mt-4 text-center text-sm font-semibold text-zinc-300">{coach.coachNote}</p>
-          </section>
-
-          <section className="mt-4 rounded-[2rem] border border-white/5 bg-black/10 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Que trabaja</p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-300">{coach.summary}</p>
-          </section>
-
-          <section className="mt-4 flex flex-wrap gap-2">
-            {coach.cues.map((cue) => (
-              <span
-                key={cue}
-                className="rounded-full border border-white/5 bg-[#161b25] px-4 py-3 text-[10px] font-black uppercase tracking-[0.25em] text-zinc-200"
-              >
-                {cue}
-              </span>
-            ))}
-          </section>
-
-          <section className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-[1.75rem] border border-white/5 bg-black/10 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sesiones</p>
-              <p className="mt-2 text-2xl font-black text-white">{progressSnapshot.sessionsLogged}</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/5 bg-black/10 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mejor serie</p>
-              <p className="mt-2 text-2xl font-black text-[#6EE7B7]">{progressSnapshot.bestSetReps || '--'}</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/5 bg-black/10 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Reps totales</p>
-              <p className="mt-2 text-2xl font-black text-white">{progressSnapshot.totalTrackedReps || '--'}</p>
-            </div>
-          </section>
-
-          <section className="mt-5">
-            <div className="grid grid-cols-4 gap-2 rounded-[1.75rem] bg-[#0F141D] p-2">
-              {(['how', 'mistakes', 'progression', 'video'] as DetailTab[]).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`rounded-[1.25rem] px-2 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                    activeTab === tab
-                      ? 'bg-[#6EE7B7] text-[#080B11]'
-                      : 'text-zinc-500 hover:text-white'
-                  }`}
-                >
-                  {tab === 'how' ? 'Como' : tab === 'mistakes' ? 'Errores' : tab === 'progression' ? 'Progresion' : 'Video'}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 rounded-[2rem] border border-white/5 bg-[#111722] p-5">
-              {activeTab === 'how' ? (
-                <div className="space-y-4">
-                  {coach.instructions.map((step, index) => (
-                    <div key={step} className="flex gap-4">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#6EE7B7]/10 text-xs font-black text-[#6EE7B7]">
-                        {index + 1}
-                      </span>
-                      <p className="text-sm leading-relaxed text-zinc-300">{step}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {activeTab === 'mistakes' ? (
-                <div className="space-y-3">
-                  {coach.mistakes.map((mistake) => (
-                    <div key={mistake} className="rounded-[1.5rem] border border-red-400/10 bg-red-400/5 px-4 py-4 text-sm font-semibold text-zinc-200">
-                      {mistake}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {activeTab === 'progression' ? (
-                <div className="space-y-4">
-                  <div className="rounded-[1.5rem] border border-white/5 bg-black/10 p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mas facil</p>
-                    <div className="mt-2 space-y-2">
-                      {(coach.progression.easier?.length ? coach.progression.easier : ['Aun no hay una version mas simple registrada.']).map((item) => (
-                        <p key={item} className="text-sm font-semibold text-zinc-300">{item}</p>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-[#6EE7B7]/20 bg-[#6EE7B7]/10 p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#C8FFE8]">Actual</p>
-                    <p className="mt-2 text-lg font-black text-white">{coach.progression.current}</p>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-white/5 bg-black/10 p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mas desafiante</p>
-                    <div className="mt-2 space-y-2">
-                      {(coach.progression.harder?.length ? coach.progression.harder : ['Primero consolida esta version con tecnica limpia.']).map((item) => (
-                        <p key={item} className="text-sm font-semibold text-zinc-300">{item}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {activeTab === 'video' ? (
-                <div className="text-center">
-                  <PlayCircle className="mx-auto h-12 w-12 text-[#6EE7B7]" />
-                  <h3 className="mt-4 text-xl font-black text-white">Necesitas una explicacion mas lenta?</h3>
-                  <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
-                    Abrimos una busqueda en YouTube con tecnica y tutoriales para este movimiento.
-                  </p>
-
-                  <Button
-                    className="mt-6 h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
-                    onClick={openYoutube}
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" /> Ver explicacion completa
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[2rem] border border-white/5 bg-black/10 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Tu progreso</p>
-                <h3 className="mt-2 text-lg font-black text-white">Ultimas sesiones</h3>
-              </div>
-            </div>
-
-            {progressSnapshot.recent.length === 0 ? (
-              <div className="mt-4 rounded-[1.5rem] border border-dashed border-white/5 bg-[#111722] px-4 py-6 text-center text-sm text-zinc-500">
-                Cuando lo registres aqui veras mejor serie, reps y ritmo real.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {progressSnapshot.recent.map((entry) => (
-                  <div key={entry.performedAt} className="flex items-center justify-between rounded-[1.5rem] bg-[#111722] px-4 py-4">
-                    <div>
-                      <p className="text-sm font-black text-white">
-                        {new Date(entry.performedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </p>
-                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                        {entry.totalReps} reps totales
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-[#6EE7B7]">{entry.bestReps} reps</p>
-                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mejor serie</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 shrink-0 border-t border-white/5 bg-[#121721]/95 px-4 py-4 backdrop-blur-xl">
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto pb-32">
+          {/* Title Info */}
+          <div className="px-6 flex justify-between items-start mb-6">
+            <div>
+              <h1 className="text-2xl font-black">{exercise.name}</h1>
+              <p className="mt-1 text-xs text-zinc-400">
+                {formatMuscleGroup(exercise.muscleGroup)} • {exercise.mechanic === 'compound' ? 'Compuesto' : exercise.mechanic === 'isolation' ? 'Aislamiento' : exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">
+                <span>PRINCIPIANTE</span>
+                <div className="flex gap-0.5">
+                  <div className="h-2 w-1.5 rounded-sm bg-[#6EE7B7]" />
+                  <div className="h-2 w-1.5 rounded-sm bg-[#6EE7B7]" />
+                  <div className="h-2 w-1.5 rounded-sm bg-white/20" />
+                  <div className="h-2 w-1.5 rounded-sm bg-white/20" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="rounded-2xl border border-white/5 bg-white/5 p-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Fatiga actual</p>
+              <p className="mt-1 text-xl font-black text-white">{Math.round(exerciseFatigue)}%</p>
+              <p className={`mt-1 text-[10px] font-bold uppercase tracking-[0.2em] ${isReady ? 'text-[#6EE7B7]' : 'text-red-400'}`}>
+                {isReady ? 'Listo para entrenar' : 'Requiere descanso'}
+              </p>
+            </div>
+          </div>
+
+          {/* Graphics Area */}
+          <div className="px-6 mb-6">
+            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[2rem] border border-white/5 bg-[#121721] flex items-center justify-center p-4">
+              <MuscleHighlight muscleGroup={exercise.muscleGroup} />
+            </div>
+          </div>
+
+          {/* Quick Tips */}
+          <div className="px-6 flex justify-between gap-2 mb-6">
+            <div className="flex flex-col items-center text-center max-w-[100px]">
+               <Shield className="size-6 text-[#6EE7B7] mb-2" />
+               <p className="text-xs font-bold text-white mb-1">Cuerpo recto</p>
+               <p className="text-[10px] text-zinc-500 leading-tight">Activa abdomen y glúteos</p>
+            </div>
+            <div className="flex flex-col items-center text-center max-w-[100px]">
+               <ArrowDown className="size-6 text-[#6EE7B7] mb-2" />
+               <p className="text-xs font-bold text-white mb-1">Baja controlado</p>
+               <p className="text-[10px] text-zinc-500 leading-tight">Músculo en tensión</p>
+            </div>
+            <div className="flex flex-col items-center text-center max-w-[100px]">
+               <ArrowUp className="size-6 text-[#6EE7B7] mb-2" />
+               <p className="text-xs font-bold text-white mb-1">Empuja fuerte</p>
+               <p className="text-[10px] text-zinc-500 leading-tight">Extensión sin bloquear</p>
+            </div>
+          </div>
+
+          {/* Tabs Menu */}
+          <div className="px-4">
+            <div className="flex overflow-x-auto rounded-[2rem] bg-[#121721] p-1 no-scrollbar">
+              <button 
+                className={`flex-shrink-0 flex-1 rounded-[1.75rem] py-2.5 px-4 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${activeTab === 'como' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'}`}
+                onClick={() => setActiveTab('como')}
+              >
+                Cómo hacerlo
+              </button>
+              <button 
+                className={`flex-shrink-0 rounded-[1.75rem] py-2.5 px-4 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${activeTab === 'errores' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'}`}
+                onClick={() => setActiveTab('errores')}
+              >
+                Errores
+              </button>
+              <button 
+                className={`flex-shrink-0 rounded-[1.75rem] py-2.5 px-4 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${activeTab === 'progresiones' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'}`}
+                onClick={() => setActiveTab('progresiones')}
+              >
+                Progresiones
+              </button>
+              <button 
+                className={`flex-shrink-0 rounded-[1.75rem] py-2.5 px-4 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${activeTab === 'video' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'}`}
+                onClick={() => setActiveTab('video')}
+              >
+                Video
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="px-6 py-6">
+          {activeTab === 'como' && (
+            <div className="space-y-6">
+              {exercise.formGuidance && exercise.formGuidance.length > 0 ? (
+                exercise.formGuidance.map((step, index) => (
+                  <div key={index} className="flex gap-4">
+                    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#6EE7B7]/20 text-[#6EE7B7] text-xs font-black">
+                      {index + 1}
+                    </div>
+                    <p className="text-sm text-zinc-300 leading-relaxed">{step}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="flex gap-4">
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#6EE7B7]/20 text-[#6EE7B7] text-xs font-black">1</div>
+                  <p className="text-sm text-zinc-300 leading-relaxed">Sin instrucciones detalladas disponibles. Consulta el video para más guía.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'errores' && (
+            <div className="space-y-6">
+              <div className="flex gap-4 items-start">
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-red-500/20 text-red-400 relative">
+                  <XCircle className="size-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Desalineación del cuerpo</p>
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">Evita encorvarte o dejar caer la cadera. Mantén una línea recta constante.</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-4 items-start">
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-red-500/20 text-red-400 relative">
+                  <XCircle className="size-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Rango incompleto</p>
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">Baja lo suficiente y no recortes el movimiento para obtener el estímulo completo.</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-4 items-start">
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-red-500/20 text-red-400 relative">
+                  <XCircle className="size-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Posición de extremidades</p>
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">Mantén las articulaciones en posiciones seguras (~45° para codos o rodillas según aplique).</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'progresiones' && (
+            <div className="space-y-6">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-3">Más fácil</p>
+                <div className="flex gap-4 items-center rounded-2xl bg-white/5 p-3 border border-transparent">
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/10 text-zinc-500">
+                    <ArrowDown className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Variante asistida</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Usa apoyo en rodillas o banda elástica.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7] mb-3">Actual</p>
+                <div className="flex gap-4 items-center rounded-2xl bg-[#6EE7B7]/10 p-3 border border-[#6EE7B7]/30">
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#6EE7B7]/20 text-[#6EE7B7]">
+                    <Shield className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#6EE7B7]">{exercise.name}</p>
+                    <p className="text-[10px] text-[#6EE7B7]/70 mt-1">Tu nivel actual.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-3">Más difícil</p>
+                <div className="flex gap-4 items-center rounded-2xl bg-white/5 p-3 border border-transparent mb-2">
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/10 text-zinc-500">
+                    <ArrowUp className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Variante con déficit</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Rango de movimiento extendido.</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-center rounded-2xl bg-white/5 p-3 border border-transparent">
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/10 text-zinc-500">
+                    <ArrowUp className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Variante explosiva/unilateral</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Aumenta la fuerza y tensión requerida.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'video' && (
+            <div className="flex flex-col items-center justify-center text-center py-6">
+              <div className="size-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                <Play className="size-10 text-[#6EE7B7] ml-2" />
+              </div>
+              <p className="text-lg font-black text-white mb-2">¿Necesitas verlo en detalle?</p>
+              <p className="text-sm text-zinc-400 mb-8 max-w-[250px] mx-auto">
+                Mira un tutorial completo para dominar la técnica adecuadamente.
+              </p>
+              
+              <Button
+                variant="outline"
+                className="h-14 rounded-[1.75rem] border-white/20 bg-transparent px-8 text-[10px] font-black uppercase tracking-[0.3em] text-white hover:bg-white/5 hover:text-white"
+                onClick={() => {
+                  if (exercise.videoUrl) {
+                    window.open(exercise.videoUrl, '_blank');
+                  } else {
+                    window.open(`https://www.youtube.com/results?search_query=how+to+do+${encodeURIComponent(exercise.name)}+exercise`, '_blank');
+                  }
+                }}
+              >
+                VER EN YOUTUBE <ExternalLink className="ml-2 size-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+        {/* Bottom CTA */}
+        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#080B11] via-[#080B11]/90 to-transparent p-6 pt-12 pointer-events-none">
           <Button
-            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+            className="w-full h-14 rounded-[1.75rem] bg-[#6EE7B7] text-xs font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0] pointer-events-auto"
             onClick={() => {
               onAddWorkout(exercise);
               onOpenChange(false);
             }}
           >
-            <Plus className="mr-2 h-4 w-4" /> Anadir a rutina
+            + Agregar a mi rutina
           </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+

@@ -70,6 +70,7 @@ export interface AppStoreData {
   settings: {
     unitSystem: 'metric' | 'imperial';
     onboarded: boolean;
+    defaultRestDuration?: number;
   };
   calorieGoal: number;
   macrosGoal: MacroGoal;
@@ -121,6 +122,7 @@ export function createInitialAppStoreData(): AppStoreData {
     settings: {
       unitSystem: 'metric',
       onboarded: false,
+      defaultRestDuration: 60,
     },
     calorieGoal: 2000,
     macrosGoal: DEFAULT_MACROS,
@@ -164,27 +166,6 @@ function isMacroGoal(value: unknown): value is MacroGoal {
 
   const goal = value as Record<string, unknown>;
   return typeof goal.protein === 'number' && typeof goal.carbs === 'number' && typeof goal.fat === 'number';
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
-}
-
-function normalizeProgression(value: unknown): CustomExercise['progression'] | undefined {
-  if (!value || typeof value !== 'object') {
-    return undefined;
-  }
-
-  const progression = value as Record<string, unknown>;
-  if (typeof progression.current !== 'string') {
-    return undefined;
-  }
-
-  return {
-    current: progression.current,
-    easier: isStringArray(progression.easier) ? progression.easier : undefined,
-    harder: isStringArray(progression.harder) ? progression.harder : undefined,
-  };
 }
 
 function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutLog | null {
@@ -317,18 +298,6 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         muscleGroup: value.muscleGroup as CustomExercise['muscleGroup'],
         isBodyweight: Boolean(value.isBodyweight),
         mechanic: typeof value.mechanic === 'string' ? value.mechanic : null,
-        difficulty: typeof value.difficulty === 'string' ? value.difficulty as CustomExercise['difficulty'] : undefined,
-        summary: typeof value.summary === 'string' ? value.summary : undefined,
-        coachNote: typeof value.coachNote === 'string' ? value.coachNote : undefined,
-        cues: isStringArray(value.cues) ? value.cues : undefined,
-        instructions: isStringArray(value.instructions) ? value.instructions : undefined,
-        mistakes: isStringArray(value.mistakes) ? value.mistakes : undefined,
-        progression: normalizeProgression(value.progression),
-        youtubeQuery: typeof value.youtubeQuery === 'string' ? value.youtubeQuery : undefined,
-        demoKey: typeof value.demoKey === 'string' ? value.demoKey as CustomExercise['demoKey'] : undefined,
-        noEquipment: typeof value.noEquipment === 'boolean' ? value.noEquipment : undefined,
-        searchTerms: isStringArray(value.searchTerms) ? value.searchTerms : undefined,
-        images: isStringArray(value.images) ? value.images : undefined,
         iconName: getExerciseIconName(value.muscleGroup as CustomExercise['muscleGroup'], typeof value.iconName === 'string' ? value.iconName : undefined),
         source: value.source === 'custom' ? 'custom' : 'legacy',
         createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
@@ -409,7 +378,7 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
     templates: Array.isArray(rawState.templates) ? rawState.templates : defaults.templates,
     weightLogs: Array.isArray(rawState.weightLogs) ? rawState.weightLogs : defaults.weightLogs,
     settings: rawState.settings && typeof rawState.settings === 'object' 
-      ? { ...defaults.settings, ...rawState.settings }
+      ? { ...defaults.settings, ...(rawState.settings as object) }
       : defaults.settings,
     calorieGoal: typeof rawState.calorieGoal === 'number' ? rawState.calorieGoal : defaults.calorieGoal,
     macrosGoal: isMacroGoal(rawState.macrosGoal) ? rawState.macrosGoal : defaults.macrosGoal,
@@ -433,18 +402,6 @@ export const useStore = create<AppState>()(
           muscleGroup: exerciseInput.muscleGroup,
           isBodyweight: exerciseInput.isBodyweight,
           mechanic: exerciseInput.mechanic,
-          difficulty: exerciseInput.difficulty,
-          summary: exerciseInput.summary,
-          coachNote: exerciseInput.coachNote,
-          cues: exerciseInput.cues,
-          instructions: exerciseInput.instructions,
-          mistakes: exerciseInput.mistakes,
-          progression: exerciseInput.progression,
-          youtubeQuery: exerciseInput.youtubeQuery,
-          demoKey: exerciseInput.demoKey,
-          noEquipment: exerciseInput.noEquipment,
-          searchTerms: exerciseInput.searchTerms,
-          images: exerciseInput.images,
           iconName: exerciseInput.iconName ?? getExerciseIconName(exerciseInput.muscleGroup),
           source: 'custom',
           createdAt: exerciseInput.createdAt ?? new Date().toISOString(),
@@ -514,12 +471,18 @@ export const useStore = create<AppState>()(
       })),
       deleteSleepLog: (id) => set((state) => ({ sleepLogs: state.sleepLogs.filter((log) => log.id !== id) })),
 
-      startDraftSession: (seed) => set({ draftSession: createDraftSession(seed) }),
+      startDraftSession: (seed) => set((state) => ({ 
+        draftSession: createDraftSession({
+          ...seed,
+          restDurationSeconds: seed?.restDurationSeconds ?? state.settings.defaultRestDuration ?? 60
+        }) 
+      })),
       discardDraftSession: () => set({ draftSession: null }),
       setDraftName: (name) => set((state) => ({
         draftSession: state.draftSession ? { ...state.draftSession, name } : state.draftSession,
       })),
       setDraftRestDuration: (seconds) => set((state) => ({
+        settings: { ...state.settings, defaultRestDuration: Math.max(15, seconds) },
         draftSession: state.draftSession
           ? { ...state.draftSession, restDurationSeconds: Math.max(15, seconds) }
           : state.draftSession,
@@ -533,7 +496,10 @@ export const useStore = create<AppState>()(
               ...state.draftSession,
               logs: [...state.draftSession.logs, buildWorkoutLog(exercise)],
             }
-          : createDraftSession({ logs: [buildWorkoutLog(exercise)] }),
+          : createDraftSession({ 
+              logs: [buildWorkoutLog(exercise)],
+              restDurationSeconds: state.settings.defaultRestDuration ?? 60
+            }),
       })),
       duplicateDraftLog: (logId) => set((state) => ({
         draftSession: state.draftSession

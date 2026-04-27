@@ -21,6 +21,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
   const addExerciseToDraft = useStore((state) => state.addExerciseToDraft);
   const duplicateDraftLog = useStore((state) => state.duplicateDraftLog);
   const removeDraftLog = useStore((state) => state.removeDraftLog);
+  const toggleDraftLogBodyweight = useStore((state) => state.toggleDraftLogBodyweight);
   const addSetToDraftLog = useStore((state) => state.addSetToDraftLog);
   const updateDraftSet = useStore((state) => state.updateDraftSet);
   const removeDraftSet = useStore((state) => state.removeDraftSet);
@@ -148,7 +149,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sin ejercicios aún</p>
             <h2 className="mt-3 text-2xl font-black tracking-tight text-white">Construye tu sesión</h2>
             <p className="mt-3 max-w-sm text-sm text-zinc-400">
-              Añade movimientos sin equipo o crea tu propia variante bodyweight. El borrador se guarda automáticamente.
+              Añade ejercicios del catálogo o crea uno personalizado. El borrador se guarda automáticamente.
             </p>
             <Button
               className="mt-6 h-14 rounded-[1.75rem] bg-[#6EE7B7] px-6 text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
@@ -165,6 +166,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
                 log={log}
                 expanded={expandedLogs[log.id] ?? false}
                 onToggleExpand={() => setExpandedLogs((current) => ({ ...current, [log.id]: !current[log.id] }))}
+                onToggleBodyweight={(checked) => toggleDraftLogBodyweight(log.id, checked)}
                 onRemoveLog={() => removeDraftLog(log.id)}
                 onDuplicateLog={() => duplicateDraftLog(log.id)}
                 onAddSet={() => addSetToDraftLog(log.id)}

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Flame, Moon, TrendingUp } from 'lucide-react';
+import { Flame, Moon, TrendingUp, Activity } from 'lucide-react';
 
-import { formatDayHeading } from '@/lib/display';
+import { formatDayHeading, formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import { useStoreData } from '@/hooks/useStoreData';
 import {
@@ -11,6 +11,7 @@ import {
   selectSleepChartData,
   selectTrainingStreak,
   selectWeeklyTrainingData,
+  selectMuscleGroupStats,
 } from '@/store/selectors';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { formatWeight } from '@/lib/units';
@@ -25,10 +26,12 @@ export function Stats() {
   const sleepChartData = useMemo(() => selectSleepChartData(storeData), [storeData]);
   const insights = useMemo(() => selectCoachInsights(storeData), [storeData]);
   const personalRecords = useMemo(() => selectPersonalRecords(storeData), [storeData]);
+  const muscleGroupStats = useMemo(() => selectMuscleGroupStats(storeData), [storeData]);
   const { exercises } = useExerciseCatalog();
   const currentWeekVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
   const maxReps = Math.max(...weeklyData.map((day) => day.totalReps), 1);
   const maxSleepScore = Math.max(...sleepChartData.map((day) => day.score ?? 0), 1);
+  const maxMuscleLoad = Math.max(...muscleGroupStats.map((stat) => stat.totalLoad), 1);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
@@ -86,6 +89,36 @@ export function Stats() {
                     {day.label}
                   </p>
                   <p className="mt-1 text-[10px] text-zinc-600">{day.totalReps}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-center gap-3">
+            <Activity className="size-5 text-indigo-400" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Distribución</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Volumen Histórico</h2>
+            </div>
+          </div>
+          
+          <div className="mt-8 space-y-4">
+            {muscleGroupStats.sort((a, b) => b.totalLoad - a.totalLoad).map((stat) => (
+              <div key={stat.muscleGroup}>
+                <div className="flex justify-between items-end mb-2">
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">{formatMuscleGroup(stat.muscleGroup)}</p>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-[#6EE7B7] inline-block mr-2">{stat.totalReps} <span className="text-[10px] text-zinc-500">reps</span></p>
+                    <p className="text-xs font-black text-indigo-400 inline-block">{formatWeight(stat.totalLoad, storeData.settings.unitSystem)}</p>
+                  </div>
+                </div>
+                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-indigo-400 rounded-full transition-all duration-700" 
+                    style={{ width: `${Math.max(2, (stat.totalLoad / maxMuscleLoad) * 100)}%` }} 
+                  />
                 </div>
               </div>
             ))}

@@ -14,10 +14,10 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'today', label: 'Hoy', icon: LayoutGrid },
+  { id: 'today', label: 'Inicio', icon: LayoutGrid },
   { id: 'library', label: 'Entrenar', icon: Trophy },
   { id: 'timeline', label: 'Diario', icon: Clock3 },
-  { id: 'stats', label: 'Progreso', icon: TrendingUp },
+  { id: 'stats', label: 'Stats', icon: TrendingUp },
 ];
 
 export function Layout({

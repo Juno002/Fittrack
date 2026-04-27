@@ -2,6 +2,8 @@ import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react';
 
 import { ExerciseIcon } from '@/components/ExerciseIcon';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { WorkoutSetRow } from '@/features/workouts/WorkoutSetRow';
 import { cn } from '@/lib/utils';
 import type { WorkoutLog } from '@/store/types';
@@ -11,6 +13,7 @@ interface WorkoutLogCardProps {
   log: WorkoutLog;
   expanded: boolean;
   onToggleExpand: () => void;
+  onToggleBodyweight: (checked: boolean) => void;
   onRemoveLog: () => void;
   onDuplicateLog: () => void;
   onAddSet: () => void;
@@ -23,6 +26,7 @@ export function WorkoutLogCard({
   log,
   expanded,
   onToggleExpand,
+  onToggleBodyweight,
   onRemoveLog,
   onDuplicateLog,
   onAddSet,
@@ -74,11 +78,15 @@ export function WorkoutLogCard({
           onClick={onToggleExpand}
           className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3 text-left"
         >
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sin equipo</p>
-            <p className="mt-1 text-sm font-semibold text-zinc-300">
-              {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'} para progresar por reps y tecnica
-            </p>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`bodyweight-${log.id}`}
+              checked={log.isBodyweight}
+              onCheckedChange={(checked) => onToggleBodyweight(Boolean(checked))}
+            />
+            <Label htmlFor={`bodyweight-${log.id}`} className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+              Peso corporal
+            </Label>
           </div>
 
           <ChevronDown className={cn('size-4 text-zinc-600 transition-transform', expanded && 'rotate-180')} />

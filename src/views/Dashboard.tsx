@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Download, Settings, Upload } from 'lucide-react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Settings, Download, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,37 +11,13 @@ import { formatMuscleGroup } from '@/lib/display';
 import { getDisplayWeight, getStorageWeight } from '@/lib/units';
 import { buildWorkoutLog } from '@/lib/workout';
 import { useStore, type MacroGoal, type UserProfile } from '@/store';
-import { selectDashboardCards } from '@/store/selectors';
 import type { MuscleGroup } from '@/store/types';
+import { selectDashboardCards } from '@/store/selectors';
 
 const MuscleMap = lazy(() => import('@/components/MuscleMap').then((module) => ({ default: module.MuscleMap })));
 
 interface DashboardProps {
   onOpenWorkout: () => void;
-}
-
-function getFatigueActionLabel(value: number) {
-  if (value >= 70) {
-    return 'Evita pesado';
-  }
-
-  if (value >= 45) {
-    return 'Carga moderada';
-  }
-
-  return 'Buen momento';
-}
-
-function getToneBadgeClasses(tone: 'good' | 'warn' | 'danger') {
-  if (tone === 'danger') {
-    return 'border-red-400/20 bg-red-400/10 text-red-200';
-  }
-
-  if (tone === 'warn') {
-    return 'border-amber-400/20 bg-amber-400/10 text-amber-100';
-  }
-
-  return 'border-[#6EE7B7]/20 bg-[#6EE7B7]/10 text-[#C8FFE8]';
 }
 
 export function Dashboard({ onOpenWorkout }: DashboardProps) {
@@ -60,9 +36,6 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
   const [displayWeightDraft, setDisplayWeightDraft] = useState(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
 
   const dashboardCards = useMemo(() => selectDashboardCards(data), [data]);
-  const readiness = dashboardCards.readiness;
-  const weeklyMomentum = dashboardCards.weeklyMomentum;
-  const toneBadgeClasses = getToneBadgeClasses(readiness.coachTone);
 
   useEffect(() => {
     if (isSettingsOpen) {
@@ -75,18 +48,18 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
   }, [data, isSettingsOpen]);
 
   const recommendedExercises = useMemo(() => {
-    const muscleSet = new Set(readiness.recommendedMuscles);
+    const muscleSet = new Set(dashboardCards.readiness.recommendedMuscles);
+    return exercises.filter((exercise) => muscleSet.has(exercise.muscleGroup)).slice(0, 4);
+  }, [dashboardCards.readiness.recommendedMuscles, exercises]);
 
-    return exercises
-      .filter((exercise) => muscleSet.has(exercise.muscleGroup))
-      .slice(0, readiness.suggestedExerciseCount);
-  }, [exercises, readiness.recommendedMuscles, readiness.suggestedExerciseCount]);
-  const sessionExercises = recommendedExercises.length > 0
-    ? recommendedExercises
-    : exercises.slice(0, readiness.suggestedExerciseCount);
-
+  const focusLabel = dashboardCards.readiness.recommendedMuscles
+    .map((muscle) => formatMuscleGroup(muscle))
+    .join(' + ');
   const sleepProgress = dashboardCards.latestSleep
     ? Math.min(100, (dashboardCards.latestSleep.durationHours / 8) * 100)
+    : 0;
+  const calorieProgress = data.calorieGoal > 0
+    ? Math.min(100, (dashboardCards.todaySummary.calories / data.calorieGoal) * 100)
     : 0;
 
   const handleStartWorkout = () => {
@@ -96,8 +69,8 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
     }
 
     startDraftSession({
-      name: readiness.hasTrainingHistory ? `Hoy: ${readiness.focusLabel}` : 'Sesión base Fittrack',
-      logs: sessionExercises.map((exercise) => buildWorkoutLog(exercise)),
+      name: focusLabel ? `Focus: ${focusLabel}` : 'Training Session',
+      logs: recommendedExercises.slice(0, 2).map((exercise) => buildWorkoutLog(exercise)),
     });
     onOpenWorkout();
   };
@@ -112,7 +85,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       macrosGoal: data.macrosGoal,
       profile: data.profile,
     };
-
+    
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -124,7 +97,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
     URL.revokeObjectURL(url);
   };
 
-  const handleImportData = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -135,7 +108,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         if (!importedData.profile || !importedData.sessions) {
           throw new Error('Archivo de backup inválido');
         }
-
+        
         if (window.confirm('Esto sobrescribirá tus datos actuales con el backup importado. ¿Estás seguro?')) {
           useStore.setState(importedData);
           setIsSettingsOpen(false);
@@ -145,7 +118,8 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         alert('Error al procesar el archivo. Asegúrate de que sea un backup válido de FitTrack.');
         console.error('Import error:', err);
       }
-
+      
+      // Reset input so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -155,13 +129,9 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
-      <header className="flex items-start justify-between px-6 pt-10 pb-4">
+      <header className="flex items-end justify-between px-6 pt-10 pb-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Hoy</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Entrena lo correcto</h1>
-          <p className="mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
-            Fittrack ya hizo el trabajo pesado. Abre, mira y actúa.
-          </p>
+          <h1 className="text-3xl font-black tracking-tight text-white">Hola, Atleta</h1>
         </div>
 
         <Button
@@ -175,85 +145,41 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-32">
-        <section className="relative overflow-hidden rounded-[2.75rem] border border-white/5 bg-[radial-gradient(circle_at_top_right,_rgba(110,231,183,0.16),_transparent_40%),linear-gradient(160deg,_rgba(18,23,33,0.96),_rgba(8,11,17,1))] p-6">
-          <div className="absolute -right-12 top-8 h-32 w-32 rounded-full bg-[#6EE7B7]/10 blur-3xl" />
-          <div className="relative">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Hoy estás</p>
-                <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <p className="text-[4rem] font-black leading-none tracking-tighter text-white">
-                    {readiness.readiness}%
-                  </p>
-                  <span className={`rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] ${toneBadgeClasses}`}>
-                    {readiness.sessionModeLabel}
-                  </span>
-                </div>
-                <p className="mt-3 max-w-xs text-sm leading-relaxed text-zinc-400">
-                  {readiness.decisionBody}
-                </p>
-              </div>
-
-              <div className="min-w-[108px] rounded-[2rem] border border-white/8 bg-black/20 px-4 py-4 text-right">
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duración</p>
-                <p className="mt-2 text-3xl font-black leading-none text-white">{readiness.suggestedDurationMinutes}</p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                  {readiness.suggestedExerciseCount} ejercicios
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-3">
-              <div className="rounded-[2rem] border border-white/5 bg-black/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mejor opción hoy</p>
-                <p className="mt-2 text-xl font-black text-white">
-                  {readiness.focusLabel} <span className="text-zinc-500">- {readiness.suggestedDurationMinutes} min</span>
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{readiness.coachTitle}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-[2rem] border border-white/5 bg-black/20 p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Riesgo</p>
-                  <p className="mt-2 text-sm font-black text-white">{readiness.riskLabel}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-zinc-500">{readiness.riskBody}</p>
-                </div>
-
-                <div className="rounded-[2rem] border border-white/5 bg-black/20 p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Progreso semana</p>
-                  <p className="mt-2 text-sm font-black text-white">{weeklyMomentum.summary}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-zinc-500">{weeklyMomentum.detail}</p>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              className="mt-8 h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
-              onClick={handleStartWorkout}
-            >
-              {data.draftSession ? 'Continuar sesión' : 'Entrenar ahora'}
-            </Button>
-
-            <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-              {data.draftSession
-                ? 'Tu borrador sigue listo para retomarse sin perder el ritmo.'
-                : 'La sugerencia combina recuperación muscular, sueño y tu carga reciente.'}
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
-          <div className="flex items-center justify-between">
+        <section className="overflow-hidden rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
+          <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Señales del día</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Qué movió la decisión</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Preparación</p>
+              <p className="mt-3 text-[4rem] font-black leading-none tracking-tighter text-white">
+                {dashboardCards.readiness.readiness}%
+              </p>
+              <p className="mt-3 text-sm font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                {focusLabel || 'Recuperación general'}
+              </p>
+              <p className="mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
+                {dashboardCards.readiness.coachBody}
+              </p>
             </div>
-            <span className="rounded-2xl bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">
-              Recovery Engine
-            </span>
+
+            <div className="rounded-full border-[10px] border-[#1A202C] border-t-[#6EE7B7] p-6">
+              <div className="text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                  {dashboardCards.readiness.suggestedDurationMinutes} min
+                </p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  Suggestion
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4">
+          <Button
+            className="mt-8 h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+            onClick={handleStartWorkout}
+          >
+            {data.draftSession ? 'Continuar sesión' : 'Comenzar sugerencia'}
+          </Button>
+
+          <div className="mt-8 grid grid-cols-2 gap-4">
             <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
               <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
                 <span>Sueño</span>
@@ -264,42 +190,39 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1A202C]">
                 <div className="h-full rounded-full bg-[#63B3ED]" style={{ width: `${sleepProgress}%` }} />
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                {dashboardCards.latestSleep
-                  ? `Calidad ${dashboardCards.latestSleep.qualityScore}/100.`
-                  : 'Registrar sueño mejora mucho la precisión de la recomendación.'}
-              </p>
             </div>
-
             <div className="rounded-[2rem] border border-white/5 bg-black/10 p-4">
               <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                <span>Momentum</span>
-                <span className="text-zinc-100">{weeklyMomentum.summary}</span>
+                <span>Calorías</span>
+                <span className="text-zinc-100">{dashboardCards.todaySummary.calories}</span>
               </div>
-              <p className="mt-4 text-sm font-black text-white">{weeklyMomentum.detail}</p>
-              <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                {weeklyMomentum.averageSleepHours === null
-                  ? 'Todavía falta contexto de descanso esta semana.'
-                  : `Sueño promedio semanal: ${weeklyMomentum.averageSleepHours}h.`}
-              </p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1A202C]">
+                <div className="h-full rounded-full bg-[#F6AD55]" style={{ width: `${calorieProgress}%` }} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Tu Cuerpo</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Fatiga Muscular</h2>
             </div>
           </div>
 
-          <div className="mt-6 h-[300px] overflow-hidden rounded-[2.25rem] bg-black/20">
+          <div className="h-[300px] overflow-hidden rounded-[2.25rem] bg-black/20">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-500">Loading map...</div>}>
-              <MuscleMap fatigue={readiness.fatigue} />
+              <MuscleMap fatigue={dashboardCards.readiness.fatigue} />
             </Suspense>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            {(Object.entries(readiness.fatigue) as [MuscleGroup, number][]).map(([muscleGroup, value]) => (
+            {(Object.entries(dashboardCards.readiness.fatigue) as [MuscleGroup, number][]).map(([muscleGroup, value]) => (
               <div key={muscleGroup} className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                    {formatMuscleGroup(muscleGroup)}
-                  </span>
-                  <p className="mt-1 text-xs text-zinc-500">{getFatigueActionLabel(value)}</p>
-                </div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  {formatMuscleGroup(muscleGroup)}
+                </span>
                 <span className="text-sm font-black text-white">{Math.round(value)}%</span>
               </div>
             ))}
@@ -309,36 +232,31 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Plan sugerido</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Qué sí conviene hoy</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sugerencia</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Rutina Recomendada</h2>
             </div>
             <span className="rounded-2xl bg-[#6EE7B7]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-              {readiness.suggestedExerciseCount} movimientos
+              {dashboardCards.readiness.suggestedDurationMinutes} min
             </span>
           </div>
 
-          {sessionExercises.length === 0 ? (
+          {recommendedExercises.length === 0 ? (
             <div className="mt-6 rounded-[2rem] border border-dashed border-white/5 bg-black/10 px-5 py-10 text-center text-sm text-zinc-500">
               Registra algunos entrenamientos para que podamos recomendarte una rutina.
             </div>
           ) : (
             <div className="mt-6 space-y-3">
-              {sessionExercises.map((exercise) => (
+              {recommendedExercises.map((exercise) => (
                 <div key={exercise.id} className="flex items-center justify-between rounded-[2rem] border border-white/5 bg-black/10 px-4 py-4">
                   <div>
                     <p className="font-black text-white">{exercise.name}</p>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                      {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Sin equipo' : 'Carga externa'}
+                      {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                      {getFatigueActionLabel(readiness.fatigue[exercise.muscleGroup])}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {Math.round(readiness.fatigue[exercise.muscleGroup])}% fatiga
-                    </p>
-                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
+                    {Math.round(dashboardCards.readiness.fatigue[exercise.muscleGroup])}% fatiga
+                  </span>
                 </div>
               ))}
             </div>
@@ -371,6 +289,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                   <button
                     onClick={() => {
                       const nextSys = unitSystemDraft === 'metric' ? 'imperial' : 'metric';
+                      // If we switch, convert the draft display value to the other unit so the input looks right
                       const rawKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
                       setUnitSystemDraft(nextSys);
                       setDisplayWeightDraft(getDisplayWeight(rawKg, nextSys));
@@ -428,10 +347,10 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               onClick={() => {
                 const finalWeightKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
                 const newProfile = { ...profileDraft, weight: finalWeightKg };
-
+                
                 updateProfile(newProfile);
                 useStore.getState().updateSettings({ unitSystem: unitSystemDraft });
-
+                
                 if (finalWeightKg !== data.profile.weight) {
                   useStore.getState().logBodyWeight(finalWeightKg);
                 }
@@ -443,9 +362,9 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               Guardar perfil
             </Button>
 
-            <div className="mt-6 space-y-3 border-t border-white/5 pt-6">
-              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Gestión de Datos</p>
-
+            <div className="pt-6 mt-6 border-t border-white/5 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">Gestión de Datos</p>
+              
               <Button
                 variant="outline"
                 className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
@@ -453,7 +372,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               >
                 <Download className="mr-2 h-4 w-4" /> Exportar Backup
               </Button>
-
+              
               <input
                 type="file"
                 accept=".json"
