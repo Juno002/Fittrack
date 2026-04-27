@@ -24,7 +24,7 @@ interface ExercisePickerDialogProps {
   }) => void;
 }
 
-const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'] as const;
+const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'core'] as const;
 
 export function ExercisePickerDialog({
   open,

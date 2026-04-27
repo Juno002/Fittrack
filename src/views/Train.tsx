@@ -1,31 +1,34 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { Trophy } from 'lucide-react';
 
+import { ExerciseDetail } from '@/components/ExerciseDetail';
+import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { Input } from '@/components/ui/input';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
 import { buildWorkoutLog } from '@/lib/workout';
-import { useStore } from '@/store';
-import { selectFatigueSummary } from '@/store/selectors';
-import type { ExerciseDefinition, MuscleGroup, WorkoutTemplate } from '@/store/types';
-import { ExerciseIcon } from '@/components/ExerciseIcon';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { ExerciseDetail } from '@/components/ExerciseDetail';
+import { useStore } from '@/store';
+import {
+  getMuscleStatusColor,
+  getMuscleStatusLabel,
+  getRecoveryStateLabel,
+  getVolumeZoneLabel,
+  selectMuscleStatuses,
+} from '@/store/selectors';
+import type { ExerciseDefinition, MuscleGroup, WorkoutTemplate } from '@/store/types';
 
 interface TrainProps {
   onOpenWorkout: () => void;
 }
 
-const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'core'];
 
 export function Train({ onOpenWorkout }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
   const data = useStoreData();
-  const fatigue = useMemo(
-    () => selectFatigueSummary(data),
-    [data],
-  );
+  const muscleStatuses = useMemo(() => selectMuscleStatuses(data), [data]);
   const draftSession = useStore((state) => state.draftSession);
   const startDraftSession = useStore((state) => state.startDraftSession);
   const addExerciseToDraft = useStore((state) => state.addExerciseToDraft);
@@ -33,6 +36,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition | null>(null);
   const deferredQuery = useDeferredValue(searchQuery);
+  const [viewMode, setViewMode] = useState<'catalog' | 'templates'>('catalog');
 
   const filteredExercises = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
@@ -53,10 +57,6 @@ export function Train({ onOpenWorkout }: TrainProps) {
     });
   }, [activeFilter, deferredQuery, exercises]);
 
-  const handleSelectExercise = (exercise: ExerciseDefinition) => {
-    setSelectedExercise(exercise);
-  };
-
   const handleAddWorkout = (exercise: ExerciseDefinition) => {
     if (draftSession) {
       addExerciseToDraft(exercise);
@@ -72,15 +72,14 @@ export function Train({ onOpenWorkout }: TrainProps) {
   };
 
   const handleStartTemplate = (template: WorkoutTemplate) => {
-    if (draftSession) {
-      if (!window.confirm('Iniciar una plantilla descartará tu borrador actual. ¿Continuar?')) return;
+    if (draftSession && !window.confirm('Iniciar una plantilla descartará tu borrador actual. ¿Continuar?')) {
+      return;
     }
-    
-    // Copy the logs and reset their IDs to prevent reusing IDs in new sessions
-    const freshLogs = template.logs.map(log => ({
+
+    const freshLogs = template.logs.map((log) => ({
       ...log,
       id: crypto.randomUUID(),
-      sets: log.sets.map(set => ({ ...set, completed: false }))
+      sets: log.sets.map((set) => ({ ...set, completed: false })),
     }));
 
     startDraftSession({
@@ -90,15 +89,13 @@ export function Train({ onOpenWorkout }: TrainProps) {
     onOpenWorkout();
   };
 
-  const [viewMode, setViewMode] = useState<'catalog' | 'templates'>('catalog');
-
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
       <header className="px-6 pt-10 pb-4">
         <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Entrenar</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Ejercicios & Rutinas</h1>
         <p className="mt-2 text-sm text-zinc-400">
-          Explora movimientos, mira tutoriales visuales o inicia tus plantillas guardadas.
+          Explora movimientos, revisa su estado de recuperación y arma sesiones con una progresión más honesta.
         </p>
       </header>
 
@@ -108,7 +105,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
             type="button"
             className={cn(
               'flex-1 rounded-xl py-2.5 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
-              viewMode === 'catalog' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'
+              viewMode === 'catalog' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white',
             )}
             onClick={() => setViewMode('catalog')}
           >
@@ -118,7 +115,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
             type="button"
             className={cn(
               'flex-1 rounded-xl py-2.5 text-[10px] font-bold uppercase tracking-[0.25em] transition-all',
-              viewMode === 'templates' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white'
+              viewMode === 'templates' ? 'bg-[#6EE7B7] text-[#080B11]' : 'text-zinc-500 hover:text-white',
             )}
             onClick={() => setViewMode('templates')}
           >
@@ -164,19 +161,22 @@ export function Train({ onOpenWorkout }: TrainProps) {
             ) : (
               <div className="space-y-2">
                 {filteredExercises.map((exercise) => {
-                  const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
-                  const statusLabel = exerciseFatigue >= 70 ? 'Recupera primero' : exerciseFatigue >= 45 ? 'Fatiga moderada' : 'Listo';
-                  const statusColor = exerciseFatigue >= 70 ? 'text-red-400' : exerciseFatigue >= 45 ? 'text-orange-400' : 'text-[#6EE7B7]';
+                  const status = muscleStatuses[exercise.muscleGroup];
+                  const statusLabel = getMuscleStatusLabel(status);
+                  const statusColor = getMuscleStatusColor(status);
+                  const detailLabel = status.acuteRecoveryState === 'recovered'
+                    ? getVolumeZoneLabel(status.volumeZone)
+                    : getRecoveryStateLabel(status.acuteRecoveryState);
 
                   return (
                     <button
                       key={exercise.id}
                       type="button"
                       className="flex w-full items-stretch gap-4 rounded-[1.5rem] border border-transparent bg-white/5 p-4 text-left transition-all hover:bg-white/10"
-                      onClick={() => handleSelectExercise(exercise)}
+                      onClick={() => setSelectedExercise(exercise)}
                     >
-                      <div className="flex w-[80px] shrink-0 items-center justify-center rounded-[1rem] bg-black/20 text-white/50 border border-white/5 overflow-hidden">
-                         <ExerciseIcon name={exercise.iconName} className="size-8" />
+                      <div className="flex w-[80px] shrink-0 items-center justify-center rounded-[1rem] border border-white/5 bg-black/20 text-white/50 overflow-hidden">
+                        <ExerciseIcon name={exercise.iconName} className="size-8" />
                       </div>
 
                       <div className="min-w-0 flex-1 py-1 flex flex-col justify-between">
@@ -186,20 +186,17 @@ export function Train({ onOpenWorkout }: TrainProps) {
                             {formatMuscleGroup(exercise.muscleGroup)} • {exercise.mechanic === 'compound' ? 'Compuesto' : exercise.mechanic === 'isolation' ? 'Aislamiento' : exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
                           </p>
                         </div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6EE7B7]">
-                          Principiante
+                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500">
+                          {status.weeklySets.toFixed(1)} series esta semana
                         </p>
                       </div>
 
                       <div className="text-right py-1 flex flex-col justify-between">
-                        <div className="flex items-center justify-end gap-1">
-                          <p className="text-xs font-bold text-zinc-400">Fatiga</p>
-                        </div>
-                        <div className="flex items-end justify-end gap-1">
-                          <p className="text-lg font-black text-white leading-none">{Math.round(exerciseFatigue)}%</p>
-                          <span className="text-zinc-500 pb-0.5">&gt;</span>
-                        </div>
                         <p className={`text-[10px] font-bold uppercase tracking-[0.1em] ${statusColor}`}>{statusLabel}</p>
+                        <p className="text-sm font-black text-white leading-none">{detailLabel}</p>
+                        <p className="text-[10px] text-zinc-500">
+                          {status.nextRecoveryAt ? 'Ventana activa' : 'Listo para rotar'}
+                        </p>
                       </div>
                     </button>
                   );
@@ -224,16 +221,16 @@ export function Train({ onOpenWorkout }: TrainProps) {
                 <div key={template.id} className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-lg font-black text-white">{template.name}</h3>
-                    <button 
+                    <button
                       onClick={() => useStore.getState().deleteTemplate(template.id)}
                       className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-300"
                     >
                       Eliminar
                     </button>
                   </div>
-                  
+
                   <div className="mb-6 space-y-1">
-                    {template.logs.map(log => (
+                    {template.logs.map((log) => (
                       <p key={log.id} className="text-sm text-zinc-400">
                         <span className="font-bold text-zinc-300">{log.sets.length}x</span> {log.exerciseName}
                       </p>
@@ -244,7 +241,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
                     className="h-12 w-full rounded-[1.5rem] bg-[#6EE7B7]/10 text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7] hover:bg-[#6EE7B7]/20"
                     onClick={() => handleStartTemplate(template)}
                   >
-                    Iniciar Rutina
+                    Iniciar rutina
                   </button>
                 </div>
               ))}
@@ -257,7 +254,9 @@ export function Train({ onOpenWorkout }: TrainProps) {
         exercise={selectedExercise}
         open={selectedExercise !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedExercise(null);
+          if (!open) {
+            setSelectedExercise(null);
+          }
         }}
         onAddWorkout={handleAddWorkout}
       />

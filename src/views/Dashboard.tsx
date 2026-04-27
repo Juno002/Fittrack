@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Settings, Download, Upload } from 'lucide-react';
+import { Download, Settings, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,11 +8,18 @@ import { Label } from '@/components/ui/label';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
+import type { MuscleStatus } from '@/lib/fatigue';
 import { getDisplayWeight, getStorageWeight } from '@/lib/units';
 import { buildWorkoutLog } from '@/lib/workout';
-import { useStore, type MacroGoal, type UserProfile } from '@/store';
+import { useStore, type UserProfile } from '@/store';
+import {
+  getMuscleStatusColor,
+  getMuscleStatusLabel,
+  getRecoveryStateLabel,
+  selectDashboardCards,
+  selectRecommendedExercises,
+} from '@/store/selectors';
 import type { MuscleGroup } from '@/store/types';
-import { selectDashboardCards } from '@/store/selectors';
 
 const MuscleMap = lazy(() => import('@/components/MuscleMap').then((module) => ({ default: module.MuscleMap })));
 
@@ -31,11 +38,12 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<UserProfile>(data.profile);
   const [calorieDraft, setCalorieDraft] = useState(data.calorieGoal);
-  const [macroDraft, setMacroDraft] = useState<MacroGoal>(data.macrosGoal);
+  const [macroDraft, setMacroDraft] = useState(data.macrosGoal);
   const [unitSystemDraft, setUnitSystemDraft] = useState(data.settings.unitSystem);
   const [displayWeightDraft, setDisplayWeightDraft] = useState(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
 
   const dashboardCards = useMemo(() => selectDashboardCards(data), [data]);
+  const recommendedExercises = useMemo(() => selectRecommendedExercises(data, exercises), [data, exercises]);
 
   useEffect(() => {
     if (isSettingsOpen) {
@@ -46,11 +54,6 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       setDisplayWeightDraft(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
     }
   }, [data, isSettingsOpen]);
-
-  const recommendedExercises = useMemo(() => {
-    const muscleSet = new Set(dashboardCards.readiness.recommendedMuscles);
-    return exercises.filter((exercise) => muscleSet.has(exercise.muscleGroup)).slice(0, 4);
-  }, [dashboardCards.readiness.recommendedMuscles, exercises]);
 
   const focusLabel = dashboardCards.readiness.recommendedMuscles
     .map((muscle) => formatMuscleGroup(muscle))
@@ -85,45 +88,47 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
       macrosGoal: data.macrosGoal,
       profile: data.profile,
     };
-    
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fittrack-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `fittrack-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (readEvent) => {
       try {
-        const importedData = JSON.parse(e.target?.result as string);
+        const importedData = JSON.parse(readEvent.target?.result as string);
         if (!importedData.profile || !importedData.sessions) {
           throw new Error('Archivo de backup inválido');
         }
-        
+
         if (window.confirm('Esto sobrescribirá tus datos actuales con el backup importado. ¿Estás seguro?')) {
           useStore.setState(importedData);
           setIsSettingsOpen(false);
           window.location.reload();
         }
-      } catch (err) {
+      } catch (error) {
         alert('Error al procesar el archivo. Asegúrate de que sea un backup válido de FitTrack.');
-        console.error('Import error:', err);
+        console.error('Import error:', error);
       }
-      
-      // Reset input so the same file can be selected again
+
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     };
+
     reader.readAsText(file);
   };
 
@@ -148,12 +153,12 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         <section className="overflow-hidden rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
           <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Preparación</p>
-              <p className="mt-3 text-[4rem] font-black leading-none tracking-tighter text-white">
-                {dashboardCards.readiness.readiness}%
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Coach científico</p>
+              <p className="mt-3 text-3xl font-black leading-tight tracking-tight text-white">
+                {dashboardCards.readiness.coachTitle}
               </p>
               <p className="mt-3 text-sm font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                {focusLabel || 'Recuperación general'}
+                {focusLabel || 'Rotación inteligente'}
               </p>
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-zinc-400">
                 {dashboardCards.readiness.coachBody}
@@ -166,7 +171,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                   {dashboardCards.readiness.suggestedDurationMinutes} min
                 </p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                  Suggestion
+                  Sugerencia
                 </p>
               </div>
             </div>
@@ -206,24 +211,30 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
         <section className="rounded-[2.75rem] border border-white/5 bg-[#121721] p-6">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Tu Cuerpo</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Fatiga Muscular</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Tu cuerpo</p>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Estados musculares</h2>
             </div>
           </div>
 
           <div className="h-[300px] overflow-hidden rounded-[2.25rem] bg-black/20">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-500">Loading map...</div>}>
-              <MuscleMap fatigue={dashboardCards.readiness.fatigue} />
+              <MuscleMap statuses={dashboardCards.readiness.muscleStatuses} />
             </Suspense>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            {(Object.entries(dashboardCards.readiness.fatigue) as [MuscleGroup, number][]).map(([muscleGroup, value]) => (
-              <div key={muscleGroup} className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                  {formatMuscleGroup(muscleGroup)}
-                </span>
-                <span className="text-sm font-black text-white">{Math.round(value)}%</span>
+            {(Object.entries(dashboardCards.readiness.muscleStatuses) as [MuscleGroup, MuscleStatus][]).map(([muscleGroup, status]) => (
+              <div key={muscleGroup} className="rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                    {formatMuscleGroup(muscleGroup)}
+                  </span>
+                  <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${getMuscleStatusColor(status)}`}>
+                    {getMuscleStatusLabel(status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-black text-white">{status.weeklySets.toFixed(1)} series</p>
+                <p className="mt-1 text-[10px] text-zinc-500">{getRecoveryStateLabel(status.acuteRecoveryState)}</p>
               </div>
             ))}
           </div>
@@ -233,7 +244,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sugerencia</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Rutina Recomendada</h2>
+              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Rutina recomendada</h2>
             </div>
             <span className="rounded-2xl bg-[#6EE7B7]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
               {dashboardCards.readiness.suggestedDurationMinutes} min
@@ -246,19 +257,26 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
             </div>
           ) : (
             <div className="mt-6 space-y-3">
-              {recommendedExercises.map((exercise) => (
-                <div key={exercise.id} className="flex items-center justify-between rounded-[2rem] border border-white/5 bg-black/10 px-4 py-4">
-                  <div>
-                    <p className="font-black text-white">{exercise.name}</p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                      {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
-                    </p>
+              {recommendedExercises.map((exercise) => {
+                const status = dashboardCards.readiness.muscleStatuses[exercise.muscleGroup];
+
+                return (
+                  <div key={exercise.id} className="flex items-center justify-between rounded-[2rem] border border-white/5 bg-black/10 px-4 py-4">
+                    <div>
+                      <p className="font-black text-white">{exercise.name}</p>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                        {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Bodyweight' : 'Weighted'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.25em] ${getMuscleStatusColor(status)}`}>
+                        {getMuscleStatusLabel(status)}
+                      </span>
+                      <p className="mt-1 text-[10px] text-zinc-500">{getRecoveryStateLabel(status.acuteRecoveryState)}</p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                    {Math.round(dashboardCards.readiness.fatigue[exercise.muscleGroup])}% fatiga
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -288,11 +306,10 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
                   </Label>
                   <button
                     onClick={() => {
-                      const nextSys = unitSystemDraft === 'metric' ? 'imperial' : 'metric';
-                      // If we switch, convert the draft display value to the other unit so the input looks right
-                      const rawKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
-                      setUnitSystemDraft(nextSys);
-                      setDisplayWeightDraft(getDisplayWeight(rawKg, nextSys));
+                      const nextSystem = unitSystemDraft === 'metric' ? 'imperial' : 'metric';
+                      const rawWeightKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
+                      setUnitSystemDraft(nextSystem);
+                      setDisplayWeightDraft(getDisplayWeight(rawWeightKg, nextSystem));
                     }}
                     className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]"
                   >
@@ -347,10 +364,10 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               onClick={() => {
                 const finalWeightKg = getStorageWeight(displayWeightDraft, unitSystemDraft);
                 const newProfile = { ...profileDraft, weight: finalWeightKg };
-                
+
                 updateProfile(newProfile);
                 useStore.getState().updateSettings({ unitSystem: unitSystemDraft });
-                
+
                 if (finalWeightKg !== data.profile.weight) {
                   useStore.getState().logBodyWeight(finalWeightKg);
                 }
@@ -364,7 +381,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
 
             <div className="pt-6 mt-6 border-t border-white/5 space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">Gestión de Datos</p>
-              
+
               <Button
                 variant="outline"
                 className="h-14 w-full rounded-[1.75rem] border-white/10 bg-transparent text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
@@ -372,7 +389,7 @@ export function Dashboard({ onOpenWorkout }: DashboardProps) {
               >
                 <Download className="mr-2 h-4 w-4" /> Exportar Backup
               </Button>
-              
+
               <input
                 type="file"
                 accept=".json"

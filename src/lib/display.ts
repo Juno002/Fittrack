@@ -8,7 +8,8 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   back: 'Espalda',
   legs: 'Piernas',
   shoulders: 'Hombros',
-  arms: 'Brazos',
+  biceps: 'Bíceps',
+  triceps: 'Tríceps',
   core: 'Core',
 };
 

@@ -66,6 +66,11 @@ describe('draft finalization', () => {
             muscleGroup: 'chest',
             iconName: 'ArrowDown',
             isBodyweight: true,
+            mechanic: 'compound',
+            secondaryTargets: { triceps: 0.5, shoulders: 0.25 },
+            progressionTrackId: null,
+            progressionStep: null,
+            coachModeling: 'curated',
             sets: [
               { reps: 0, weight: 0, completed: false },
               { reps: 12, weight: 0, completed: true },

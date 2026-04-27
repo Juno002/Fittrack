@@ -10,29 +10,76 @@ import {
   subDays,
 } from 'date-fns';
 
+import { getNextProgressionStep, getProgressionTrackSteps } from '@/lib/exercises';
+import {
+  buildMuscleStatuses,
+  calculateWeeklyVolume,
+  getFatigueBreakdown,
+  getMuscleStatusColor,
+  getMuscleStatusIntensity,
+  getMuscleStatusLabel,
+  getMuscleStatusTone,
+  getRecoveryStateLabel,
+  getSleepRecoveryWarning,
+  getVolumeZoneLabel,
+  type MuscleStatus,
+} from '@/lib/fatigue';
 import { compareDayKeys, formatDayKey, getRecentDayKeys, parseDayKey, toDayKey } from '@/lib/dates';
 import { formatMuscleGroup } from '@/lib/display';
 import {
-  calculateFatigue,
-  getFatigueBreakdown,
-  getRecoveryColor,
-  getRecoveryText,
-  calculateWeeklyVolume,
-  getSleepModifier,
-  getEffectiveMRV
-} from '@/lib/fatigue';
-import {
+  getWorkoutLogLoadTotal,
+  getWorkoutLogRepTotal,
   getWorkoutSessionLoadTotal,
   getWorkoutSessionRepTotal,
   getWorkoutSessionSetTotal,
-  getWorkoutLogRepTotal,
-  getWorkoutLogLoadTotal,
 } from '@/lib/workout';
 import type { AppStoreData } from '@/store';
-import type { ExerciseDefinition, MuscleGroup } from '@/store/types';
+import type { ExerciseDefinition, MuscleGroup, ProgressionTrackId } from '@/store/types';
 
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
+function getStatusSeverity(status: MuscleStatus) {
+  if (status.volumeZone === 'over_mrv') {
+    return 6;
+  }
+
+  if (status.performanceWarning) {
+    return 5;
+  }
+
+  if (status.acuteRecoveryState === 'delayed_peak') {
+    return 4;
+  }
+
+  if (status.acuteRecoveryState === 'early') {
+    return 3;
+  }
+
+  if (status.volumeZone === 'high') {
+    return 2;
+  }
+
+  if (status.volumeZone === 'below_mev') {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getRecommendedMuscleScore(status: MuscleStatus) {
+  const recoveryScore = status.acuteRecoveryState === 'recovered' ? 0 : status.acuteRecoveryState === 'early' ? 10 : 20;
+  const warningScore = status.performanceWarning ? 25 : 0;
+  const volumeRatio = status.weeklySets / Math.max(status.thresholds.mavMax, 1);
+  const volumePenalty = status.volumeZone === 'over_mrv'
+    ? 100
+    : status.volumeZone === 'high'
+      ? 20
+      : Math.round(volumeRatio * 10);
+
+  return recoveryScore + warningScore + volumePenalty;
+}
+
+function getProgressionReadiness(log: AppStoreData['sessions'][number]['logs'][number], effort: number) {
+  const completedSetsAboveThreshold = log.sets.filter((set) => set.completed && set.reps > 12).length;
+  return completedSetsAboveThreshold >= 2 && effort <= 3;
 }
 
 export function selectTodayDayKey() {
@@ -59,95 +106,91 @@ export function selectLatestSleepLog(state: AppStoreData) {
   return [...state.sleepLogs].sort((left, right) => right.dayKey.localeCompare(left.dayKey))[0] ?? null;
 }
 
-export function selectFatigueSummary(state: AppStoreData, referenceDate = new Date()) {
-  return calculateFatigue({
+export function selectMuscleStatuses(state: AppStoreData, referenceDate = new Date()) {
+  return buildMuscleStatuses({
     sessions: state.sessions,
     sleepLogs: state.sleepLogs,
-    profile: state.profile,
     referenceDate,
   });
 }
 
-export function selectReadinessSummary(state: AppStoreData, referenceDate = new Date()) {
-  const fatigue = selectFatigueSummary(state, referenceDate);
-  const entries = Object.entries(fatigue) as [MuscleGroup, number][];
-  const averageFatigue = entries.reduce((total, [, value]) => total + value, 0) / entries.length;
-  const readiness = clamp(Math.round(100 - averageFatigue), 12, 100);
-  
-  const weeklyVolume = calculateWeeklyVolume(state.sessions, referenceDate);
-  const sleepMod = getSleepModifier(state.sleepLogs, referenceDate);
-  
-  let coachTitle = 'Volumen bajo.';
-  let coachBody = 'Aún no realizas suficiente volumen para crecer óptimamente esta semana.';
-  let coachTone: 'good' | 'warn' | 'danger' = 'warn';
+export function selectFatigueSummary(state: AppStoreData, referenceDate = new Date()) {
+  return selectMuscleStatuses(state, referenceDate);
+}
 
-  // Analyze the muscle with the most sets relative to its MRV
-  let maxRatio = 0;
-  let maxMuscle: MuscleGroup = 'chest';
-  let zone = 'low'; // low, optimal, high, over
-  
-  for (const muscle of Object.keys(weeklyVolume) as MuscleGroup[]) {
-    const sets = weeklyVolume[muscle];
-    const limits = getEffectiveMRV(muscle, sleepMod);
-    if (sets === 0) continue;
-    
-    const ratio = sets / limits.mrv;
-    if (ratio > maxRatio) {
-      maxRatio = ratio;
-      maxMuscle = muscle;
-      if (sets > limits.mrv) {
-        zone = 'over';
-      } else if (sets >= limits.mavMin) {
-        zone = sets > limits.mavMax ? 'high' : 'optimal';
-      } else if (sets >= limits.mev) {
-        zone = 'optimal';
-      } else {
-        zone = 'low';
-      }
+export function selectReadinessSummary(state: AppStoreData, referenceDate = new Date()) {
+  const muscleStatuses = selectMuscleStatuses(state, referenceDate);
+  const entries = Object.values(muscleStatuses);
+  const sortedBySeverity = [...entries].sort((left, right) => (
+    getStatusSeverity(right) - getStatusSeverity(left)
+      || right.weeklySets - left.weeklySets
+  ));
+  const primaryAlert = sortedBySeverity[0] ?? null;
+  const recommendedMuscles = entries
+    .filter((status) => status.volumeZone !== 'over_mrv')
+    .sort((left, right) => getRecommendedMuscleScore(left) - getRecommendedMuscleScore(right))
+    .slice(0, 2)
+    .map((status) => status.muscleGroup);
+  const sleepWarning = getSleepRecoveryWarning(state.sleepLogs, referenceDate);
+
+  let coachTone: 'good' | 'warn' | 'danger' = 'good';
+  let coachTitle = 'Lista para progresar.';
+  let coachBody = 'Tus grupos mejor posicionados están recuperados y en una zona sostenible para seguir empujando.';
+
+  if (primaryAlert) {
+    const muscleName = formatMuscleGroup(primaryAlert.muscleGroup).toLowerCase();
+
+    if (primaryAlert.volumeZone === 'over_mrv') {
+      coachTone = 'danger';
+      coachTitle = `Detén ${muscleName} esta semana.`;
+      coachBody = `Ya superaste el MRV de ${muscleName}. Más volumen ahora probablemente añadiría daño sin mejorar la adaptación.`;
+    } else if (primaryAlert.performanceWarning) {
+      coachTone = 'warn';
+      coachTitle = `Caída de rendimiento en ${muscleName}.`;
+      coachBody = `Tu sesión reciente rindió peor que la comparable anterior. Si además sigue doliendo, conviene bajar intensidad o descansar antes de repetir ${muscleName}.`;
+    } else if (primaryAlert.acuteRecoveryState === 'delayed_peak') {
+      coachTone = 'warn';
+      coachTitle = `Pico retardado en ${muscleName}.`;
+      coachBody = `Ese músculo sigue dentro de la ventana de daño retardado de 24-72h. Te conviene entrenar otro foco mientras termina de asentarse la recuperación periférica.`;
+    } else if (primaryAlert.acuteRecoveryState === 'early') {
+      coachTone = 'warn';
+      coachTitle = `${formatMuscleGroup(primaryAlert.muscleGroup)} aún recuperando.`;
+      coachBody = `Todavía estás en la primera fase de recuperación aguda. Puedes entrenar, pero tiene más sentido priorizar músculos ya recuperados.`;
+    } else if (primaryAlert.volumeZone === 'high') {
+      coachTone = 'warn';
+      coachTitle = `Volumen alto en ${muscleName}.`;
+      coachBody = `Estás por encima del rango adaptativo cómodo. Monitorea dolor, rendimiento y sueño antes de seguir cargando ese músculo.`;
+    } else if (primaryAlert.volumeZone === 'below_mev' && primaryAlert.weeklySets > 0) {
+      coachTone = 'warn';
+      coachTitle = `Volumen insuficiente en ${muscleName}.`;
+      coachBody = `Aún no alcanzas el MEV de ${muscleName}. Si quieres hipertrofia ahí, todavía te faltan series efectivas esta semana.`;
+    } else if (primaryAlert.volumeZone === 'optimal') {
+      coachTone = 'good';
+      coachTitle = `Zona óptima en ${muscleName}.`;
+      coachBody = `Ese músculo está dentro de un rango útil de volumen semanal y ya no arrastra fatiga aguda relevante.`;
     }
   }
 
-  const muscleName = formatMuscleGroup(maxMuscle).toLowerCase();
-  
-  if (zone === 'over') {
-    coachTone = 'danger';
-    coachTitle = `Límite superado en ${muscleName}.`;
-    coachBody = `No entrenes tus ${muscleName} más esta semana. Has superado su Máximo Volumen Recuperable (MRV). Sugerimos actividades de baja intensidad o un día de descanso absoluto.`;
-  } else if (zone === 'high') {
-    coachTone = 'warn';
-    coachTitle = `Volumen alto en ${muscleName}.`;
-    coachBody = `Estás cerca del límite para ${muscleName}. Tomar un día de descanso activo (caminar, yoga ligero) mejorará tu recuperación general.`;
-  } else if (zone === 'optimal') {
-    coachTone = 'good';
-    coachTitle = `Volumen óptimo en ${muscleName}.`;
-    coachBody = 'Estás en la zona ideal de hipertrofia. Duerme al menos 7-8 horas esta noche para consolidar este estímulo.';
-  } else if (maxRatio > 0 && sleepMod < 0.9) {
-     coachTone = 'warn';
-     coachTitle = `Recuperación comprometida.`;
-     coachBody = `La falta reciente de sueño de calidad (o duración) ha reducido tu capacidad de recuperación. Prioriza el descanso o reduce el volumen de tu próxima sesión.`;
-  } else if (maxRatio > 0) {
-    coachTone = 'warn';
-    coachTitle = `Volumen insuficiente en ${muscleName}.`;
-    coachBody = 'Aún estás por debajo del Volumen Mínimo Efectivo (MEV). Necesitas más series para crecer.';
-  } else {
-    coachTone = 'good';
-    coachTitle = `Listo para progresar.`;
-    coachBody = 'Tu recuperación está al máximo. Es un gran momento para una sesión de alta intensidad o un récord personal.';
+  if (sleepWarning) {
+    coachTone = coachTone === 'danger' ? 'danger' : 'warn';
+    coachBody = `${coachBody} Además, tu sueño reciente está por debajo de 7h de promedio, así que conviene interpretar el recovery con más prudencia.`;
   }
-  
-  const recommendedMuscles = [...entries]
-    .sort((left, right) => left[1] - right[1])
-    .slice(0, 2)
-    .map(([muscleGroup]) => muscleGroup);
-    
-  const highestFatigue = [...entries].sort((left, right) => right[1] - left[1])[0];
-  const suggestedDurationMinutes = readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20;
+
+  const maxSeverity = primaryAlert ? getStatusSeverity(primaryAlert) : 0;
+  const suggestedDurationMinutes = maxSeverity >= 6
+    ? 20
+    : maxSeverity >= 5
+      ? 25
+      : maxSeverity >= 4
+        ? 30
+        : maxSeverity >= 3 || sleepWarning
+          ? 35
+          : 45;
 
   return {
-    readiness,
-    fatigue,
+    muscleStatuses,
     recommendedMuscles,
-    highestFatigue,
+    highestAlertMuscle: primaryAlert?.muscleGroup ?? null,
     suggestedDurationMinutes,
     coachTone,
     coachTitle,
@@ -160,11 +203,16 @@ export function selectRecommendedExercises(
   library: ExerciseDefinition[],
   referenceDate = new Date(),
 ) {
-  const { recommendedMuscles } = selectReadinessSummary(state, referenceDate);
+  const { recommendedMuscles, muscleStatuses } = selectReadinessSummary(state, referenceDate);
   const muscleSet = new Set(recommendedMuscles);
 
   return library
     .filter((exercise) => muscleSet.has(exercise.muscleGroup))
+    .sort((left, right) => {
+      const leftStatus = muscleStatuses[left.muscleGroup];
+      const rightStatus = muscleStatuses[right.muscleGroup];
+      return getRecommendedMuscleScore(leftStatus) - getRecommendedMuscleScore(rightStatus);
+    })
     .slice(0, 4);
 }
 
@@ -297,7 +345,7 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
     ? null
     : Math.round(((weeklyVolume - previousWeekVolume) / previousWeekVolume) * 100);
 
-  const insights: Array<{ id: string, tone: 'good' | 'warn' | 'danger', title: string, body: string }> = [
+  const insights: Array<{ id: string; tone: 'good' | 'warn' | 'danger'; title: string; body: string }> = [
     {
       id: 'readiness',
       tone: readiness.coachTone,
@@ -310,37 +358,49 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
       title: volumeDelta === null ? 'Línea base establecida.' : `Volumen semanal ${volumeDelta >= 0 ? 'sube' : 'baja'} un ${Math.abs(volumeDelta)}%.`,
       body: volumeDelta === null
         ? 'Ya tienes suficientes datos para empezar a comparar tu carga semanal desde ahora.'
-        : 'Usa esta tendencia para decidir si seguir aumentando volumen o mantenerte estable para recuperar.',
+        : 'Úsalo para decidir si seguir acumulando volumen o reservar una semana más liviana.',
     },
     {
       id: 'sleep',
       tone: latestSleep && latestSleep.durationHours < 7 ? 'warn' : 'good',
       title: latestSleep ? `${latestSleep.durationHours}h de sueño registradas.` : 'Sin datos de sueño aún.',
       body: latestSleep
-        ? 'El sueño alimenta directamente el modelo de recuperación, registrarlo mejorará las recomendaciones.'
-        : 'Registra tu último bloque de sueño para que la estimación de recuperación sea más confiable.',
+        ? 'El sueño ahora actúa como señal cualitativa de recuperación, no como multiplicador opaco del MRV.'
+        : 'Registrar el sueño hará más honestas las advertencias del coach sobre recuperación comprometida.',
     },
   ];
 
-  // Progression Insight: Look for exercises with > 12 reps and low-medium session effort (<= 3) in recent days
-  const recentSessions = state.sessions.filter(s => differenceInHours(referenceDate, new Date(s.performedAt)) < 168); // Last 7 days
+  const recentSessions = [...state.sessions]
+    .filter((session) => differenceInHours(referenceDate, new Date(session.performedAt)) < 24 * 7)
+    .sort((left, right) => right.performedAt.localeCompare(left.performedAt));
+
   for (const session of recentSessions) {
-    if (session.effort <= 3) {
-      for (const log of session.logs) {
-        if (log.sets.some(set => set.completed && set.reps > 12)) {
-          insights.push({
-            id: 'progression',
-            tone: 'good',
-            title: `Progresión disponible en ${log.exerciseName}.`,
-            body: `Hiciste más de 12 repeticiones sintiéndolo relativamente fácil. Es hora de aumentar el peso o buscar una variante más difícil.`,
-          });
-          break; // just show one progression insight to avoid clutter
-        }
+    for (const log of session.logs) {
+      if (!log.progressionTrackId || log.progressionStep === null) {
+        continue;
       }
+
+      if (!getProgressionReadiness(log, session.effort)) {
+        continue;
+      }
+
+      const nextStep = getNextProgressionStep(log.progressionTrackId, log.progressionStep);
+      insights.push({
+        id: `progression-${log.exerciseId}`,
+        tone: 'good',
+        title: `Progresión disponible en ${log.exerciseName}.`,
+        body: nextStep
+          ? `Tu última sesión quedó demasiado fácil para hipertrofia. Prueba ${nextStep.name} para volver al rango útil de tensión.`
+          : 'Ya estás en el último nivel del track. Sube la dificultad con más ROM, explosividad o trabajo unilateral.',
+      });
+      break;
+    }
+
+    if (insights.length > 3) {
+      break;
     }
   }
 
-  // Only keep the first progression insight, but ensure total insights isn't too huge or just display it. We can show max 4.
   return insights.slice(0, 4);
 }
 
@@ -349,7 +409,6 @@ export function selectMuscleBreakdown(state: AppStoreData, muscleGroup: MuscleGr
     {
       sessions: state.sessions,
       sleepLogs: state.sleepLogs,
-      profile: state.profile,
       referenceDate,
     },
     muscleGroup,
@@ -369,6 +428,40 @@ export function selectDashboardCards(state: AppStoreData) {
   };
 }
 
+export interface ExerciseProgressionSummary {
+  trackId: ProgressionTrackId;
+  currentStep: number;
+  currentLabel: string;
+  nextStep: { id: string; name: string; trackId: ProgressionTrackId; step: number } | null;
+  steps: ReturnType<typeof getProgressionTrackSteps>;
+  shouldAdvance: boolean;
+}
+
+export function selectExerciseProgression(
+  state: AppStoreData,
+  exercise: ExerciseDefinition,
+): ExerciseProgressionSummary | null {
+  if (!exercise.progressionTrackId || exercise.progressionStep === null) {
+    return null;
+  }
+
+  const latestSession = [...state.sessions]
+    .sort((left, right) => right.performedAt.localeCompare(left.performedAt))
+    .find((session) => session.logs.some((log) => log.exerciseId === exercise.id));
+  const matchingLog = latestSession?.logs.find((log) => log.exerciseId === exercise.id) ?? null;
+  const steps = getProgressionTrackSteps(exercise.progressionTrackId);
+  const currentLabel = steps.find((step) => step.step === exercise.progressionStep)?.name ?? exercise.name;
+
+  return {
+    trackId: exercise.progressionTrackId,
+    currentStep: exercise.progressionStep,
+    currentLabel,
+    nextStep: getNextProgressionStep(exercise.progressionTrackId, exercise.progressionStep),
+    steps,
+    shouldAdvance: matchingLog ? getProgressionReadiness(matchingLog, latestSession?.effort ?? 5) : false,
+  };
+}
+
 export interface ExerciseHistoryEntry {
   dayKey: string;
   performedAt: string;
@@ -381,21 +474,29 @@ export function selectExerciseHistory(state: AppStoreData, exerciseId: string): 
   const history: ExerciseHistoryEntry[] = [];
 
   state.sessions.forEach((session) => {
-    const log = session.logs.find((l) => l.exerciseId === exerciseId);
-    if (!log) return;
+    const log = session.logs.find((entry) => entry.exerciseId === exerciseId);
+    if (!log) {
+      return;
+    }
 
     let maxWeight = 0;
     let max1RM = 0;
     let totalVolume = 0;
 
-    log.sets.filter((s) => s.completed).forEach((set) => {
-      if (set.weight > maxWeight) maxWeight = set.weight;
+    log.sets.filter((set) => set.completed).forEach((set) => {
+      if (set.weight > maxWeight) {
+        maxWeight = set.weight;
+      }
+
       const oneRepMax = set.weight * (1 + set.reps / 30);
-      if (oneRepMax > max1RM) max1RM = oneRepMax;
+      if (oneRepMax > max1RM) {
+        max1RM = oneRepMax;
+      }
+
       totalVolume += set.reps * set.weight;
     });
 
-    if (totalVolume > 0 || (log.isBodyweight && log.sets.some(s => s.completed))) {
+    if (totalVolume > 0 || (log.isBodyweight && log.sets.some((set) => set.completed))) {
       history.push({
         dayKey: session.dayKey,
         performedAt: session.performedAt,
@@ -406,29 +507,30 @@ export function selectExerciseHistory(state: AppStoreData, exerciseId: string): 
     }
   });
 
-  // Sort by date ascending to show progression
-  return history.sort((a, b) => a.performedAt.localeCompare(b.performedAt));
+  return history.sort((left, right) => left.performedAt.localeCompare(right.performedAt));
 }
 
 export function selectPersonalRecords(state: AppStoreData): Record<string, number> {
-  const prs: Record<string, number> = {};
-  
+  const personalRecords: Record<string, number> = {};
+
   state.sessions.forEach((session) => {
     session.logs.forEach((log) => {
       let maxWeight = 0;
-      log.sets.filter((s) => s.completed).forEach((set) => {
-        if (set.weight > maxWeight) maxWeight = set.weight;
+      log.sets.filter((set) => set.completed).forEach((set) => {
+        if (set.weight > maxWeight) {
+          maxWeight = set.weight;
+        }
       });
-      
+
       if (maxWeight > 0) {
-        if (!prs[log.exerciseId] || maxWeight > prs[log.exerciseId]) {
-          prs[log.exerciseId] = maxWeight;
+        if (!personalRecords[log.exerciseId] || maxWeight > personalRecords[log.exerciseId]) {
+          personalRecords[log.exerciseId] = maxWeight;
         }
       }
     });
   });
-  
-  return prs;
+
+  return personalRecords;
 }
 
 export function selectMuscleGroupStats(state: AppStoreData) {
@@ -437,7 +539,8 @@ export function selectMuscleGroupStats(state: AppStoreData) {
     back: { totalReps: 0, totalLoad: 0 },
     legs: { totalReps: 0, totalLoad: 0 },
     shoulders: { totalReps: 0, totalLoad: 0 },
-    arms: { totalReps: 0, totalLoad: 0 },
+    biceps: { totalReps: 0, totalLoad: 0 },
+    triceps: { totalReps: 0, totalLoad: 0 },
     core: { totalReps: 0, totalLoad: 0 },
   };
 
@@ -459,4 +562,12 @@ export function selectMuscleGroupStats(state: AppStoreData) {
   }));
 }
 
-export { getRecoveryColor, getRecoveryText };
+export {
+  calculateWeeklyVolume,
+  getMuscleStatusColor,
+  getMuscleStatusIntensity,
+  getMuscleStatusLabel,
+  getMuscleStatusTone,
+  getRecoveryStateLabel,
+  getVolumeZoneLabel,
+};

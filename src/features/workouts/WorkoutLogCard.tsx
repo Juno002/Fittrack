@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { WorkoutSetRow } from '@/features/workouts/WorkoutSetRow';
+import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import type { WorkoutLog } from '@/store/types';
 
@@ -49,7 +50,7 @@ export function WorkoutLogCard({
           <button type="button" className="min-w-0 flex-1 text-left" onClick={onToggleExpand}>
             <p className="truncate text-lg font-black tracking-tight text-white">{log.exerciseName}</p>
             <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-              {log.muscleGroup} • {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'}
+              {formatMuscleGroup(log.muscleGroup)} • {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'}
             </p>
           </button>
 
