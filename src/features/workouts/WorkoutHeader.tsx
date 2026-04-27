@@ -13,6 +13,7 @@ interface WorkoutHeaderProps {
   onExit: () => void;
   onSkipRest: () => void;
   onRestDurationChange: (seconds: number) => void;
+  hideRestTimer?: boolean;
 }
 
 const REST_PRESETS = [45, 60, 90];
@@ -26,6 +27,7 @@ export function WorkoutHeader({
   onExit,
   onSkipRest,
   onRestDurationChange,
+  hideRestTimer,
 }: WorkoutHeaderProps) {
   return (
     <header className="space-y-4 px-6 pt-8 pb-4">
@@ -57,7 +59,7 @@ export function WorkoutHeader({
         </div>
       </div>
 
-      {restSeconds > 0 && (
+      {!hideRestTimer && restSeconds > 0 && (
         <div className="flex items-center justify-between rounded-[2rem] bg-[#6EE7B7] px-5 py-4 text-[#080B11] shadow-lg shadow-emerald-500/20">
           <div className="flex items-center gap-3">
             <Timer className="size-5 animate-pulse" />

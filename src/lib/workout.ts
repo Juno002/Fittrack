@@ -43,11 +43,6 @@ export function buildWorkoutLog(exercise: ExerciseDefinition): WorkoutLog {
     iconName: exercise.iconName,
     sets: [createWorkoutSet({ reps: exercise.isBodyweight ? 10 : 8 })],
     isBodyweight: exercise.isBodyweight,
-    mechanic: exercise.mechanic,
-    secondaryTargets: { ...exercise.secondaryTargets },
-    progressionTrackId: exercise.progressionTrackId,
-    progressionStep: exercise.progressionStep,
-    coachModeling: exercise.coachModeling,
   };
 }
 

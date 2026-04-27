@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { dayKeyToIso, toDayKey } from '@/lib/dates';
-import { getExerciseIconName, normalizeExerciseValue, STARTER_EXERCISES } from '@/lib/exercises';
+import { getExerciseIconName, STARTER_EXERCISES } from '@/lib/exercises';
 import {
   buildWorkoutLog,
   createDraftSession,
@@ -45,7 +45,7 @@ export type {
 
 export const STORAGE_KEY = 'fittrack-storage';
 const STORAGE_VERSION = 2;
-const MUSCLE_GROUPS = new Set(['chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'core']);
+const MUSCLE_GROUPS = new Set(['chest', 'back', 'legs', 'shoulders', 'arms', 'core']);
 
 const DEFAULT_PROFILE: UserProfile = {
   age: 25,
@@ -79,10 +79,7 @@ export interface AppStoreData {
 }
 
 interface AppActions {
-  saveCustomExercise: (
-    exercise: Pick<CustomExercise, 'id' | 'name' | 'muscleGroup' | 'isBodyweight' | 'mechanic'>
-      & Partial<Pick<CustomExercise, 'createdAt' | 'iconName'>>
-  ) => ExerciseDefinition;
+  saveCustomExercise: (exercise: Omit<CustomExercise, 'createdAt' | 'source' | 'iconName'> & Partial<Pick<CustomExercise, 'createdAt' | 'iconName'>>) => ExerciseDefinition;
   updateProfile: (profile: Partial<UserProfile>) => void;
   updateSettings: (settings: Partial<AppStoreData['settings']>) => void;
   logBodyWeight: (weight: number) => void;
@@ -135,7 +132,7 @@ export function createInitialAppStoreData(): AppStoreData {
 }
 
 function createLegacyExerciseIndex(rawExercises: unknown) {
-  const index = new Map<string, ExerciseDefinition>();
+  const index = new Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>();
 
   if (!Array.isArray(rawExercises)) {
     return index;
@@ -146,10 +143,17 @@ function createLegacyExerciseIndex(rawExercises: unknown) {
       return;
     }
 
-    const normalized = normalizeExerciseValue(exercise as Record<string, unknown>, 'legacy');
-    if (normalized) {
-      index.set(normalized.id, normalized);
+    const rawExercise = exercise as Record<string, unknown>;
+    if (typeof rawExercise.id !== 'string' || typeof rawExercise.name !== 'string' || typeof rawExercise.muscleGroup !== 'string') {
+      return;
     }
+
+    index.set(rawExercise.id, {
+      name: rawExercise.name,
+      muscleGroup: rawExercise.muscleGroup,
+      iconName: typeof rawExercise.iconName === 'string' ? rawExercise.iconName : undefined,
+      isBodyweight: Boolean(rawExercise.isBodyweight),
+    });
   });
 
   return index;
@@ -164,7 +168,7 @@ function isMacroGoal(value: unknown): value is MacroGoal {
   return typeof goal.protein === 'number' && typeof goal.carbs === 'number' && typeof goal.fat === 'number';
 }
 
-function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, ExerciseDefinition>): WorkoutLog | null {
+function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutLog | null {
   if (!rawLog || typeof rawLog !== 'object') {
     return null;
   }
@@ -172,57 +176,28 @@ function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, Exercis
   const legacyLog = rawLog as Record<string, unknown>;
   const exerciseId = typeof legacyLog.exerciseId === 'string' ? legacyLog.exerciseId : 'exercise';
   const exercise = exerciseIndex.get(exerciseId);
-  const fallbackExercise = normalizeExerciseValue(
-    {
-      id: exerciseId,
-      name: typeof legacyLog.exerciseName === 'string'
-        ? legacyLog.exerciseName
-        : exerciseId.replace(/_/g, ' '),
-      muscleGroup: typeof legacyLog.muscleGroup === 'string' ? legacyLog.muscleGroup : 'core',
-      isBodyweight: typeof legacyLog.isBodyweight === 'boolean' ? legacyLog.isBodyweight : Boolean(exercise?.isBodyweight),
-      mechanic: typeof legacyLog.mechanic === 'string' ? legacyLog.mechanic : exercise?.mechanic ?? null,
-      secondaryTargets: legacyLog.secondaryTargets,
-      progressionTrackId: legacyLog.progressionTrackId,
-      progressionStep: legacyLog.progressionStep,
-      coachModeling: legacyLog.coachModeling,
-      iconName: typeof legacyLog.iconName === 'string' ? legacyLog.iconName : exercise?.iconName,
-    } as Record<string, unknown>,
-    'legacy',
-  );
-  const resolvedExercise = exercise ?? fallbackExercise;
-
-  if (!resolvedExercise || !MUSCLE_GROUPS.has(resolvedExercise.muscleGroup)) {
-    return null;
-  }
+  const muscleGroup = MUSCLE_GROUPS.has(exercise?.muscleGroup ?? '')
+    ? exercise!.muscleGroup as WorkoutLog['muscleGroup']
+    : 'core';
 
   return {
     id: typeof legacyLog.id === 'string' ? legacyLog.id : `log-${exerciseId}`,
     exerciseId,
     exerciseName: typeof legacyLog.exerciseName === 'string'
       ? legacyLog.exerciseName
-      : resolvedExercise.name,
-    muscleGroup: resolvedExercise.muscleGroup,
+      : exercise?.name ?? exerciseId.replace(/_/g, ' '),
+    muscleGroup,
     iconName: typeof legacyLog.iconName === 'string'
       ? legacyLog.iconName as WorkoutLog['iconName']
-      : getExerciseIconName(resolvedExercise.muscleGroup, resolvedExercise.iconName),
-    isBodyweight: typeof legacyLog.isBodyweight === 'boolean' ? legacyLog.isBodyweight : resolvedExercise.isBodyweight,
-    mechanic: typeof legacyLog.mechanic === 'string' ? legacyLog.mechanic : resolvedExercise.mechanic,
-    secondaryTargets: legacyLog.secondaryTargets && typeof legacyLog.secondaryTargets === 'object'
-      ? { ...(legacyLog.secondaryTargets as WorkoutLog['secondaryTargets']) }
-      : { ...resolvedExercise.secondaryTargets },
-    progressionTrackId:
-      legacyLog.progressionTrackId === 'push' || legacyLog.progressionTrackId === 'squat' || legacyLog.progressionTrackId === 'pull'
-        ? legacyLog.progressionTrackId
-        : resolvedExercise.progressionTrackId,
-    progressionStep: typeof legacyLog.progressionStep === 'number' ? legacyLog.progressionStep : resolvedExercise.progressionStep,
-    coachModeling: legacyLog.coachModeling === 'generic' ? 'generic' : resolvedExercise.coachModeling,
+      : getExerciseIconName(muscleGroup, exercise?.iconName),
+    isBodyweight: typeof legacyLog.isBodyweight === 'boolean' ? legacyLog.isBodyweight : Boolean(exercise?.isBodyweight),
     sets: Array.isArray(legacyLog.sets)
       ? legacyLog.sets.map((set) => createWorkoutSet(set as Partial<WorkoutSet>))
       : [],
   };
 }
 
-function normalizeSession(rawSession: unknown, exerciseIndex: Map<string, ExerciseDefinition>): WorkoutSession | null {
+function normalizeSession(rawSession: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutSession | null {
   if (!rawSession || typeof rawSession !== 'object') {
     return null;
   }
@@ -308,15 +283,25 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
       }
 
       const value = exercise as Record<string, unknown>;
-      const normalizedExercise = normalizeExerciseValue(value, value.source === 'custom' ? 'custom' : 'legacy');
-      if (!normalizedExercise) {
+      if (
+        typeof value.id !== 'string' ||
+        typeof value.name !== 'string' ||
+        typeof value.muscleGroup !== 'string' ||
+        !MUSCLE_GROUPS.has(value.muscleGroup)
+      ) {
         return null;
       }
 
       return {
-        ...normalizedExercise,
+        id: value.id,
+        name: value.name,
+        muscleGroup: value.muscleGroup as CustomExercise['muscleGroup'],
+        isBodyweight: Boolean(value.isBodyweight),
+        mechanic: typeof value.mechanic === 'string' ? value.mechanic : null,
+        iconName: getExerciseIconName(value.muscleGroup as CustomExercise['muscleGroup'], typeof value.iconName === 'string' ? value.iconName : undefined),
+        source: value.source === 'custom' ? 'custom' : 'legacy',
         createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
-      } satisfies CustomExercise;
+      } as CustomExercise;
     })
     .filter((exercise): exercise is CustomExercise => exercise !== null);
 
@@ -334,7 +319,12 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
   const exerciseIndex = createLegacyExerciseIndex(rawState.exercises);
   const customExercises = normalizeCustomExercises(rawState.customExercises ?? rawState.exercises);
   customExercises.forEach((exercise) => {
-    exerciseIndex.set(exercise.id, exercise);
+    exerciseIndex.set(exercise.id, {
+      name: exercise.name,
+      muscleGroup: exercise.muscleGroup,
+      iconName: exercise.iconName,
+      isBodyweight: exercise.isBodyweight,
+    });
   });
 
   const sessions = Array.isArray(rawState.sessions)
@@ -406,7 +396,7 @@ export const useStore = create<AppState>()(
       ...createInitialAppStoreData(),
 
       saveCustomExercise: (exerciseInput) => {
-        const normalizedExercise = normalizeExerciseValue({
+        const exercise = {
           id: exerciseInput.id,
           name: exerciseInput.name,
           muscleGroup: exerciseInput.muscleGroup,
@@ -414,14 +404,6 @@ export const useStore = create<AppState>()(
           mechanic: exerciseInput.mechanic,
           iconName: exerciseInput.iconName ?? getExerciseIconName(exerciseInput.muscleGroup),
           source: 'custom',
-        }, 'custom');
-
-        if (!normalizedExercise) {
-          throw new Error('Invalid custom exercise');
-        }
-
-        const exercise = {
-          ...normalizedExercise,
           createdAt: exerciseInput.createdAt ?? new Date().toISOString(),
         } satisfies CustomExercise;
 

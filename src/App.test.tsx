@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.useRealTimers();
     vi.resetModules();
   });
 
@@ -35,11 +34,6 @@ describe('App', () => {
               muscleGroup: 'chest',
               iconName: 'ArrowDown',
               isBodyweight: true,
-              mechanic: 'compound',
-              secondaryTargets: { triceps: 0.5, shoulders: 0.25 },
-              progressionTrackId: null,
-              progressionStep: null,
-              coachModeling: 'curated',
               sets: [{ reps: 10, weight: 0, completed: false }],
             },
           ],
@@ -52,6 +46,6 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByDisplayValue('Reloaded draft')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /finalizar/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /finish/i })).toBeInTheDocument();
   });
 });

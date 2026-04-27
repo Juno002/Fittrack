@@ -7,8 +7,7 @@ export const MUSCLE_MAPPING: Record<MuscleGroup, Slug[]> = {
   back: ['trapezius', 'upper-back', 'lower-back'],
   legs: ['quadriceps', 'gluteal', 'hamstring', 'calves', 'adductors'],
   shoulders: ['deltoids'],
-  biceps: ['biceps', 'forearm'],
-  triceps: ['triceps'],
+  arms: ['biceps', 'triceps', 'forearm'],
   core: ['abs', 'obliques'],
 };
 

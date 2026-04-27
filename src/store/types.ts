@@ -3,8 +3,7 @@ export const MUSCLE_GROUPS = [
   'back',
   'legs',
   'shoulders',
-  'biceps',
-  'triceps',
+  'arms',
   'core',
 ] as const;
 
@@ -22,9 +21,6 @@ export const EXERCISE_ICON_NAMES = [
 ] as const;
 
 export type ExerciseIconName = (typeof EXERCISE_ICON_NAMES)[number];
-export type ProgressionTrackId = 'push' | 'squat' | 'pull';
-export type CoachModeling = 'curated' | 'generic';
-export type SecondaryTargets = Partial<Record<MuscleGroup, number>>;
 
 export interface ExerciseCatalogEntry {
   id: string;
@@ -35,10 +31,6 @@ export interface ExerciseCatalogEntry {
   description?: string;
   formGuidance?: string[];
   videoUrl?: string;
-  secondaryTargets: SecondaryTargets;
-  progressionTrackId: ProgressionTrackId | null;
-  progressionStep: number | null;
-  coachModeling: CoachModeling;
 }
 
 export interface ExerciseDefinition extends ExerciseCatalogEntry {
@@ -64,11 +56,6 @@ export interface WorkoutLog {
   iconName: ExerciseIconName;
   sets: WorkoutSet[];
   isBodyweight: boolean;
-  mechanic: string | null;
-  secondaryTargets: SecondaryTargets;
-  progressionTrackId: ProgressionTrackId | null;
-  progressionStep: number | null;
-  coachModeling: CoachModeling;
 }
 
 export interface DraftSession {

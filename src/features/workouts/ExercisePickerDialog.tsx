@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { MuscleHighlight } from '@/components/MuscleHighlight';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,7 @@ interface ExercisePickerDialogProps {
   }) => void;
 }
 
-const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'core'] as const;
+const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'] as const;
 
 export function ExercisePickerDialog({
   open,
@@ -300,6 +301,10 @@ export function ExercisePickerDialog({
 
                         {isExpanded && (
                           <div className="px-5 pb-5 pt-2">
+                             <MuscleHighlight 
+                               muscleGroup={exercise.muscleGroup} 
+                               className="mb-4 bg-black/40 border-none" 
+                             />
                             <div className="space-y-4 rounded-2xl bg-black/20 p-4 mb-4 text-sm text-zinc-400">
                               {exercise.description ? (
                                 <p>{exercise.description}</p>
@@ -331,7 +336,7 @@ export function ExercisePickerDialog({
                             </div>
 
                             <Button
-                              className="h-12 w-full rounded-[1.5rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] hover:bg-[#5FE7B0]"
+                              className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[12px] font-black uppercase tracking-[0.3em] text-[#080B11] shadow-[0_10px_30px_rgba(110,231,183,0.2)] hover:bg-[#5FE7B0] hover:scale-[1.02] transition-all"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelect(exercise);
@@ -339,7 +344,7 @@ export function ExercisePickerDialog({
                                 setExpandedExerciseId(null);
                               }}
                             >
-                              Añadir a la sesión
+                              AÑADIR AHORA
                             </Button>
                           </div>
                         )}
