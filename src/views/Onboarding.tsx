@@ -9,6 +9,12 @@ import {
   formatTrainingDay,
   formatTrainingDays,
 } from '@/lib/display';
+import {
+  calculateBodyMassIndex,
+  getBodyMassIndexLabel,
+  getDisplayWeight,
+  getStorageWeight,
+} from '@/lib/units';
 import { useStore } from '@/store';
 import type {
   AppSettings,
@@ -46,22 +52,45 @@ export function Onboarding() {
   const [profileDraft, setProfileDraft] = useState<UserProfile>(storeProfile);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(copySettings(storeSettings));
   const [calorieGoalDraft, setCalorieGoalDraft] = useState(storeCalories);
+  const [displayWeightDraft, setDisplayWeightDraft] = useState(
+    getDisplayWeight(storeProfile.weight, storeSettings.unitSystem),
+  );
 
   const totalSteps = 6;
+  const profileStepValid = profileDraft.name.trim().length > 0
+    && profileDraft.age > 0
+    && profileDraft.height > 0
+    && displayWeightDraft > 0;
 
   const progress = useMemo(
     () => `${Math.round((step / totalSteps) * 100)}%`,
     [step],
   );
 
+  const profileWeightKg = useMemo(
+    () => getStorageWeight(displayWeightDraft, settingsDraft.unitSystem),
+    [displayWeightDraft, settingsDraft.unitSystem],
+  );
+
+  const bodyMassIndex = useMemo(
+    () => calculateBodyMassIndex(profileWeightKg, profileDraft.height),
+    [profileDraft.height, profileWeightKg],
+  );
+
   const finishOnboarding = () => {
+    const finalWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
+
     updateSettings({
       ...settingsDraft,
       onboarded: true,
     });
-    updateProfile(profileDraft);
+    updateProfile({
+      ...profileDraft,
+      name: profileDraft.name.trim(),
+      weight: finalWeightKg,
+    });
     setCalorieGoal(calorieGoalDraft);
-    logBodyWeight(profileDraft.weight);
+    logBodyWeight(finalWeightKg);
   };
 
   const toggleSignal = (signal: keyof ConnectedSignals) => {
@@ -88,6 +117,12 @@ export function Onboarding() {
         },
       };
     });
+  };
+
+  const handleUnitSystemChange = (unitSystem: AppSettings['unitSystem']) => {
+    const rawWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
+    setSettingsDraft((current) => ({ ...current, unitSystem }));
+    setDisplayWeightDraft(getDisplayWeight(rawWeightKg, unitSystem));
   };
 
   return (
@@ -129,10 +164,21 @@ export function Onboarding() {
               <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Crear perfil local</p>
               <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Tu baseline física</h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                Solo lo usamos para calcular mejor tu fatiga, recomendaciones y progresión.
+                Empezamos por tu nombre, edad, estatura y peso para estimar tu IMC y dejar una base limpia desde el primer día.
               </p>
 
               <div className="mt-8 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre</Label>
+                  <Input
+                    aria-label="Nombre"
+                    value={profileDraft.name}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Tu nombre"
+                    className="h-14 rounded-[1.5rem] border-none bg-white/6 px-4 text-lg font-black text-white placeholder:text-zinc-600"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Edad</Label>
@@ -147,8 +193,8 @@ export function Onboarding() {
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Peso ({settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'})</Label>
                     <Input
                       type="number"
-                      value={profileDraft.weight}
-                      onChange={(event) => setProfileDraft((current) => ({ ...current, weight: Number(event.target.value) }))}
+                      value={displayWeightDraft}
+                      onChange={(event) => setDisplayWeightDraft(Number(event.target.value))}
                       className="h-14 rounded-[1.5rem] border-none bg-white/6 px-4 text-lg font-black text-white"
                     />
                   </div>
@@ -171,7 +217,7 @@ export function Onboarding() {
                         <button
                           key={unit}
                           type="button"
-                          onClick={() => setSettingsDraft((current) => ({ ...current, unitSystem: unit }))}
+                          onClick={() => handleUnitSystemChange(unit)}
                           className={`h-14 rounded-[1.35rem] border text-[10px] font-black uppercase tracking-[0.25em] transition-all ${
                             settingsDraft.unitSystem === unit
                               ? 'border-transparent bg-[#6EE7B7] text-[#08111C]'
@@ -183,6 +229,24 @@ export function Onboarding() {
                       ))}
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-[2rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/8 p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#6EE7B7]">IMC estimado</p>
+                      <p className="mt-3 text-4xl font-black tracking-tighter text-white">
+                        {bodyMassIndex === null ? '--' : bodyMassIndex.toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.4rem] border border-white/8 bg-white/6 px-4 py-3 text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Lectura</p>
+                      <p className="mt-2 text-sm font-black text-white">{getBodyMassIndexLabel(bodyMassIndex)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-zinc-200">
+                    Es una referencia inicial para contextualizar tu baseline. Luego el sistema se apoyará más en tu recuperación real y tus sesiones.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -345,6 +409,10 @@ export function Onboarding() {
               <p className="mt-8 text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Todo listo</p>
               <h2 className="mt-4 text-4xl font-black tracking-tight text-white">Ya tienes tu sistema base</h2>
               <div className="mt-6 space-y-3 rounded-[2.2rem] border border-white/8 bg-white/6 p-5">
+                <p className="text-sm font-bold text-white">Perfil local</p>
+                <p className="text-sm text-zinc-300">
+                  {profileDraft.name.trim() || 'Perfil local'} · {profileDraft.age} años · {profileDraft.height} cm · {bodyMassIndex === null ? 'IMC --' : `IMC ${bodyMassIndex.toFixed(1)}`}
+                </p>
                 <p className="text-sm font-bold text-white">Señales activas</p>
                 <p className="text-sm text-zinc-300">
                   {Object.entries(settingsDraft.connectedSignals)
@@ -380,6 +448,7 @@ export function Onboarding() {
               }
               setStep((current) => Math.min(totalSteps, current + 1));
             }}
+            disabled={step === 2 && !profileStepValid}
             className={`h-16 flex-1 rounded-[2rem] text-sm font-black uppercase tracking-[0.25em] ${
               step === totalSteps ? 'bg-[#6EE7B7] text-[#08111C]' : 'bg-white text-[#08111C] hover:bg-zinc-100'
             }`}

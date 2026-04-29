@@ -91,6 +91,7 @@ export interface WorkoutSession {
 }
 
 export interface UserProfile {
+  name: string;
   age: number;
   weight: number;
   height: number;

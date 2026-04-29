@@ -47,6 +47,29 @@ function getTrainingDayForDate(referenceDate: Date) {
   return TRAINING_DAY_BY_INDEX[referenceDate.getDay()] ?? 'mon';
 }
 
+function hasTrainingHistory(state: AppStoreData) {
+  return state.sessions.length > 0;
+}
+
+function calculateStarterReadiness(state: AppStoreData) {
+  const latestSleep = selectLatestSleepLog(state);
+  const latestRecovery = selectLatestRecoveryCheckIn(state);
+  let readiness = 72;
+
+  if (latestSleep) {
+    readiness += latestSleep.durationHours >= 8 ? 12 : latestSleep.durationHours >= 7 ? 6 : latestSleep.durationHours >= 6 ? 0 : -10;
+    readiness += latestSleep.qualityScore >= 85 ? 6 : latestSleep.qualityScore >= 70 ? 2 : latestSleep.qualityScore >= 55 ? -4 : -8;
+  }
+
+  if (latestRecovery) {
+    readiness += (latestRecovery.energy - 3) * 7;
+    readiness += (3 - latestRecovery.soreness) * 6;
+    readiness += (3 - latestRecovery.stress) * 5;
+  }
+
+  return clamp(Math.round(readiness), 28, 92);
+}
+
 export function selectTodayDayKey() {
   return toDayKey(new Date());
 }
@@ -91,17 +114,70 @@ export function selectFatigueSummary(state: AppStoreData, referenceDate = new Da
 }
 
 export function selectReadinessSummary(state: AppStoreData, referenceDate = new Date()) {
+  const hasTrainingData = hasTrainingHistory(state);
+  const hasRecoverySignals = state.sleepLogs.length > 0 || state.recoveryCheckins.length > 0;
+  const latestSleep = selectLatestSleepLog(state);
+  const latestRecovery = selectLatestRecoveryCheckIn(state);
   const fatigue = selectFatigueSummary(state, referenceDate);
   const entries = Object.entries(fatigue) as [MuscleGroup, number][];
   const averageFatigue = entries.reduce((total, [, value]) => total + value, 0) / entries.length;
-  const readiness = clamp(Math.round(100 - averageFatigue), 12, 100);
+  const maxFatigueValue = Math.max(...entries.map(([, value]) => value), 0);
+  const readiness = hasTrainingData
+    ? clamp(Math.round(100 - averageFatigue), 12, 100)
+    : calculateStarterReadiness(state);
 
   const weeklyVolume = calculateWeeklyVolume(state.sessions, referenceDate);
   const sleepMod = getSleepModifier(state.sleepLogs, referenceDate);
 
+  const recommendedMuscles = hasTrainingData && maxFatigueValue > 0
+    ? [...entries]
+        .sort((left, right) => left[1] - right[1])
+        .slice(0, 2)
+        .map(([muscleGroup]) => muscleGroup)
+    : [];
+  const highestFatigue = hasTrainingData && maxFatigueValue > 0
+    ? [...entries].sort((left, right) => right[1] - left[1])[0] ?? null
+    : null;
+  const suggestedDurationMinutes = hasTrainingData
+    ? readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20
+    : readiness >= 80 ? 30 : readiness >= 60 ? 24 : readiness >= 45 ? 18 : 14;
+
   let coachTitle = 'Volumen bajo.';
   let coachBody = 'Aún no realizas suficiente volumen para crecer óptimamente esta semana.';
   let coachTone: 'good' | 'warn' | 'danger' = 'warn';
+
+  if (!hasTrainingData) {
+    if (latestRecovery && (latestRecovery.energy <= 2 || latestRecovery.soreness >= 4 || latestRecovery.stress >= 4)) {
+      coachTone = latestRecovery.energy <= 2 && latestRecovery.stress >= 4 ? 'danger' : 'warn';
+      coachTitle = 'Arranque suave hoy.';
+      coachBody = 'Todavía no hay historial de entrenamientos, así que hoy conviene construir base con movilidad, técnica y una sesión corta.';
+    } else if (latestSleep && latestSleep.durationHours < 7) {
+      coachTone = 'warn';
+      coachTitle = 'Base lista, pero recupera mejor.';
+      coachBody = 'Tu primera semana puede empezar suave. Registra una noche mejor y luego empuja más fuerte.';
+    } else if (hasRecoverySignals) {
+      coachTone = 'good';
+      coachTitle = 'Tu base inicial ya responde.';
+      coachBody = 'Con las señales actuales podemos proponerte una primera sesión corta sin inventar cargas específicas por músculo.';
+    } else {
+      coachTone = 'good';
+      coachTitle = 'Listo para construir tu línea base.';
+      coachBody = 'Aún no hay historial de entreno. Empieza con una rutina breve y el sistema aprenderá tu ritmo real desde ahí.';
+    }
+
+    return {
+      readiness,
+      fatigue,
+      recommendedMuscles,
+      highestFatigue,
+      suggestedDurationMinutes,
+      coachTone,
+      coachTitle,
+      coachBody,
+      hasTrainingData,
+      hasRecoverySignals,
+    };
+  }
 
   let maxRatio = 0;
   let maxMuscle: MuscleGroup = 'chest';
@@ -158,14 +234,6 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
     coachBody = 'Tu recuperación está alta. Hoy es un buen momento para una sesión principal o para retomar una rutina guardada.';
   }
 
-  const recommendedMuscles = [...entries]
-    .sort((left, right) => left[1] - right[1])
-    .slice(0, 2)
-    .map(([muscleGroup]) => muscleGroup);
-
-  const highestFatigue = [...entries].sort((left, right) => right[1] - left[1])[0];
-  const suggestedDurationMinutes = readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20;
-
   return {
     readiness,
     fatigue,
@@ -175,6 +243,8 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
     coachTone,
     coachTitle,
     coachBody,
+    hasTrainingData,
+    hasRecoverySignals,
   };
 }
 
@@ -185,6 +255,11 @@ export function selectRecommendedExercises(
 ) {
   const { recommendedMuscles } = selectReadinessSummary(state, referenceDate);
   const muscleSet = new Set(recommendedMuscles);
+
+  if (muscleSet.size === 0) {
+    const bodyweightExercises = library.filter((exercise) => exercise.isBodyweight);
+    return (bodyweightExercises.length > 0 ? bodyweightExercises : library).slice(0, 4);
+  }
 
   return library
     .filter((exercise) => muscleSet.has(exercise.muscleGroup))
@@ -340,6 +415,50 @@ export function selectTodayPlan(state: AppStoreData, referenceDate = new Date())
   const scheduledToday = state.settings.trainingSchedule.days.includes(trainingDay);
   const focusLabel = readiness.recommendedMuscles.map((muscle) => formatMuscleGroup(muscle)).join(' + ');
 
+  if (!readiness.hasTrainingData) {
+    if (readiness.readiness >= 70) {
+      return {
+        title: scheduledToday ? 'Sesión de arranque' : 'Buen día para empezar',
+        subtitle: `${scheduledToday ? 'Construye tu primera rutina' : 'Haz una sesión corta de base'} · ${formatPreferredTrainingTime(state.settings.trainingSchedule.preferredTime)}`,
+        ctaLabel: 'Crear primera rutina',
+        tone: 'good' as const,
+        scheduledToday,
+        steps: [
+          { id: 'warmup', label: 'Calentamiento', minutes: 5 },
+          { id: 'fundamentals', label: 'Bloque principal', minutes: Math.max(10, readiness.suggestedDurationMinutes - 8) },
+          { id: 'cooldown', label: 'Vuelta a la calma', minutes: 3 },
+        ],
+      };
+    }
+
+    if (readiness.readiness >= 50) {
+      return {
+        title: 'Arranque controlado',
+        subtitle: 'Movilidad, técnica y una sesión breve mientras reunimos tus primeras señales reales.',
+        ctaLabel: 'Empezar suave',
+        tone: 'warn' as const,
+        scheduledToday,
+        steps: [
+          { id: 'warmup', label: 'Activación', minutes: 4 },
+          { id: 'technique', label: 'Técnica', minutes: Math.max(8, readiness.suggestedDurationMinutes - 8) },
+          { id: 'mobility', label: 'Movilidad', minutes: 4 },
+        ],
+      };
+    }
+
+    return {
+      title: 'Recuperación inicial',
+      subtitle: 'Respira, muévete suave y deja que el sistema construya tu baseline sin forzar la primera semana.',
+      ctaLabel: 'Abrir rutina suave',
+      tone: 'danger' as const,
+      scheduledToday,
+      steps: [
+        { id: 'breath', label: 'Respiración', minutes: 4 },
+        { id: 'mobility', label: 'Movilidad suave', minutes: Math.max(8, readiness.suggestedDurationMinutes - 4) },
+      ],
+    };
+  }
+
   if (readiness.readiness >= 80) {
     return {
       title: scheduledToday ? 'Sesión principal' : 'Día ideal para entrenar',
@@ -373,7 +492,9 @@ export function selectTodayPlan(state: AppStoreData, referenceDate = new Date())
 
   return {
     title: 'Recuperación guiada',
-    subtitle: `Baja el ritmo y evita sobrecargar ${formatMuscleGroup(readiness.highestFatigue?.[0] ?? 'legs').toLowerCase()}`,
+    subtitle: readiness.highestFatigue
+      ? `Baja el ritmo y evita sobrecargar ${formatMuscleGroup(readiness.highestFatigue[0]).toLowerCase()}`
+      : 'Baja el ritmo y usa una sesión corta de movilidad y control técnico.',
     ctaLabel: 'Abrir rutina suave',
     tone: 'danger' as const,
     scheduledToday,
@@ -388,17 +509,42 @@ export function selectTodayPlan(state: AppStoreData, referenceDate = new Date())
 export function selectMapFocus(state: AppStoreData, referenceDate = new Date()) {
   const readiness = selectReadinessSummary(state, referenceDate);
   const recoveryTarget = readiness.recommendedMuscles.map((muscle) => formatMuscleGroup(muscle));
-  const highestFatigueMuscle = readiness.highestFatigue?.[0] ?? 'legs';
+  const highestFatigueMuscle = readiness.highestFatigue?.[0] ?? null;
   const highestFatigueValue = readiness.highestFatigue?.[1] ?? 0;
+
+  if (!readiness.hasTrainingData) {
+    return {
+      title: 'Aún no hay carga acumulada',
+      body: 'Cuando completes tus primeras sesiones, el mapa señalará qué zonas llegan más frescas o más cargadas. Por ahora es una referencia general.',
+      recoveryTarget,
+      highestFatigueMuscle,
+      highestFatigueValue,
+      hasTrainingData: readiness.hasTrainingData,
+    };
+  }
+
+  if (recoveryTarget.length === 0 && highestFatigueMuscle === null) {
+    return {
+      title: 'Recuperación equilibrada',
+      body: 'No hay un grupo especialmente cargado hoy. Puedes elegir una rutina equilibrada o seguir tu horario normal.',
+      recoveryTarget,
+      highestFatigueMuscle,
+      highestFatigueValue,
+      hasTrainingData: readiness.hasTrainingData,
+    };
+  }
 
   return {
     title: recoveryTarget.length > 0 ? `${recoveryTarget.join(' + ')} están listos` : 'Tu cuerpo está listo',
-    body: readiness.readiness >= 65
+    body: highestFatigueMuscle && readiness.readiness >= 65
       ? `Prioriza ${recoveryTarget.join(' y ').toLowerCase()} y evita sobrecargar ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()}.`
-      : `Reduce intensidad y cuida especialmente ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()} antes de volver a empujar.`,
+      : highestFatigueMuscle
+        ? `Reduce intensidad y cuida especialmente ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()} antes de volver a empujar.`
+        : 'No hay una zona claramente comprometida. Usa el mapa para elegir una sesión balanceada.',
     recoveryTarget,
     highestFatigueMuscle,
     highestFatigueValue,
+    hasTrainingData: readiness.hasTrainingData,
   };
 }
 
@@ -412,6 +558,7 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
   const volumeDelta = previousWeekVolume === 0
     ? null
     : Math.round(((weeklyVolume - previousWeekVolume) / previousWeekVolume) * 100);
+  const hasTrainingData = hasTrainingHistory(state);
 
   const insights: Array<{ id: string; tone: 'good' | 'warn' | 'danger'; title: string; body: string }> = [
     {
@@ -422,11 +569,17 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
     },
     {
       id: 'volume',
-      tone: volumeDelta !== null && volumeDelta < 0 ? 'warn' : 'good',
-      title: volumeDelta === null ? 'Base semanal establecida.' : `Tu volumen semanal ${volumeDelta >= 0 ? 'subió' : 'bajó'} ${Math.abs(volumeDelta)}%.`,
-      body: volumeDelta === null
-        ? 'Ya tienes suficiente base para empezar a comparar tendencia semanal.'
-        : 'Usa esta tendencia para decidir si subir carga o mantenerte estable una semana más.',
+      tone: !hasTrainingData || (volumeDelta !== null && volumeDelta < 0) ? 'warn' : 'good',
+      title: !hasTrainingData
+        ? 'Tu primera sesión definirá la línea base.'
+        : volumeDelta === null
+          ? 'Base semanal establecida.'
+          : `Tu volumen semanal ${volumeDelta >= 0 ? 'subió' : 'bajó'} ${Math.abs(volumeDelta)}%.`,
+      body: !hasTrainingData
+        ? 'Empieza con una rutina breve y consistente para que la comparación semanal tenga contexto real.'
+        : volumeDelta === null
+          ? 'Ya tienes suficiente base para empezar a comparar tendencia semanal.'
+          : 'Usa esta tendencia para decidir si subir carga o mantenerte estable una semana más.',
     },
     {
       id: 'sleep',

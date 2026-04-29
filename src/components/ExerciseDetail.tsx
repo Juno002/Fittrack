@@ -21,6 +21,7 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
   const data = useStoreData();
   
   const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
   
   if (!exercise) return null;
 
@@ -253,12 +254,13 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
               </div>
               <p className="text-lg font-black text-white mb-2">¿Necesitas verlo en detalle?</p>
               <p className="text-sm text-zinc-400 mb-8 max-w-[250px] mx-auto">
-                Mira un tutorial completo para dominar la técnica adecuadamente.
+                El tutorial es opcional y externo. La app funciona offline aunque este recurso requiera internet.
               </p>
               
               <Button
                 variant="outline"
                 className="h-14 rounded-[1.75rem] border-white/20 bg-transparent px-8 text-[10px] font-black uppercase tracking-[0.3em] text-white hover:bg-white/5 hover:text-white"
+                disabled={isOffline}
                 onClick={() => {
                   if (exercise.videoUrl) {
                     window.open(exercise.videoUrl, '_blank');
@@ -267,7 +269,7 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
                   }
                 }}
               >
-                VER EN YOUTUBE <ExternalLink className="ml-2 size-4" />
+                {isOffline ? 'SIN CONEXION' : 'VER TUTORIAL EXTERNO'} <ExternalLink className="ml-2 size-4" />
               </Button>
             </div>
           )}

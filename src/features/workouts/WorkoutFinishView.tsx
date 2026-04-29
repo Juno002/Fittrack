@@ -16,9 +16,10 @@ export function WorkoutFinishView({
   onFinish,
 }: WorkoutFinishViewProps) {
   const totalSets = logs.reduce((total, log) => total + log.sets.length, 0);
+  const completedSets = logs.reduce((total, log) => total + log.sets.filter((set) => set.completed).length, 0);
 
   return (
-    <div className="flex h-full flex-col justify-between bg-[#080B11] p-8">
+    <div className="app-screen flex h-full flex-col justify-between p-8">
       <div className="flex flex-1 flex-col items-center justify-center gap-10 text-center">
         <div className="space-y-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Finalizar sesión</p>
@@ -44,14 +45,18 @@ export function WorkoutFinishView({
           ))}
         </div>
 
-        <div className="grid w-full max-w-sm grid-cols-2 gap-4">
-          <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-5">
+        <div className="grid w-full max-w-md grid-cols-3 gap-4">
+          <div className="app-metric-tile rounded-[2rem] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duración</p>
             <p className="mt-2 text-2xl font-black text-white">{formatDuration(elapsedSeconds)}</p>
           </div>
-          <div className="rounded-[2rem] border border-white/5 bg-[#121721] p-5">
+          <div className="app-metric-tile rounded-[2rem] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Series</p>
             <p className="mt-2 text-2xl font-black text-white">{totalSets}</p>
+          </div>
+          <div className="app-metric-tile rounded-[2rem] p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Hechas</p>
+            <p className="mt-2 text-2xl font-black text-white">{completedSets}</p>
           </div>
         </div>
       </div>

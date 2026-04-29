@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { BellRing, CalendarDays, ChevronLeft, Download, ScanHeart, Target, Upload } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +10,13 @@ import {
   formatPreferredTrainingTime,
   formatTrainingDay,
 } from '@/lib/display';
-import { getDisplayWeight, getStorageWeight } from '@/lib/units';
-import { migratePersistedState, useStore } from '@/store';
+import {
+  calculateBodyMassIndex,
+  getBodyMassIndexLabel,
+  getDisplayWeight,
+  getStorageWeight,
+} from '@/lib/units';
+import { migratePersistedState, useStore, type AppStoreData } from '@/store';
 import type {
   AppSettings,
   ConnectedSignals,
@@ -73,6 +79,9 @@ export function Profile({ onBack }: ProfileProps) {
   const [displayWeightDraft, setDisplayWeightDraft] = useState(
     getDisplayWeight(data.profile.weight, data.settings.unitSystem),
   );
+  const [pendingImportData, setPendingImportData] = useState<AppStoreData | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<{ tone: 'good' | 'danger'; message: string } | null>(null);
 
   useEffect(() => {
     setProfileDraft(data.profile);
@@ -88,10 +97,14 @@ export function Profile({ onBack }: ProfileProps) {
     : 'Sin días definidos';
   const reminderLabel = settingsDraft.reminders.enabled ? settingsDraft.reminders.time : 'Off';
   const weightLabel = `${displayWeightDraft} ${settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'}`;
+  const bodyMassIndex = calculateBodyMassIndex(
+    getStorageWeight(displayWeightDraft, settingsDraft.unitSystem),
+    profileDraft.height,
+  );
 
   const handleSave = () => {
     const finalWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
-    updateProfile({ ...profileDraft, weight: finalWeightKg });
+    updateProfile({ ...profileDraft, name: profileDraft.name.trim(), weight: finalWeightKg });
     updateSettings(settingsDraft);
     if (finalWeightKg !== data.profile.weight) {
       logBodyWeight(finalWeightKg);
@@ -139,15 +152,15 @@ export function Profile({ onBack }: ProfileProps) {
       try {
         const raw = JSON.parse(loadEvent.target?.result as string);
         const imported = migratePersistedState(raw.state ?? raw);
-        if (!window.confirm('Esto reemplazará los datos actuales por el backup importado. ¿Quieres continuar?')) {
-          return;
-        }
-
-        useStore.getState().hydrateAppStoreData(imported);
-        window.location.reload();
+        setPendingImportData(imported);
+        setImportFeedback(null);
+        setIsImportDialogOpen(true);
       } catch (error) {
         console.error('Import error', error);
-        alert('No pudimos leer ese archivo. Asegúrate de que sea un backup válido de Fittrack.');
+        setImportFeedback({
+          tone: 'danger',
+          message: 'No pudimos leer ese archivo. Asegúrate de que sea un backup válido de HomeFit Recovery.',
+        });
       } finally {
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
@@ -221,6 +234,8 @@ export function Profile({ onBack }: ProfileProps) {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
+            <ProfileSnapshotTile label="Perfil" value={profileDraft.name.trim() || 'Sin nombre'} detail="Nombre local guardado solo en este dispositivo." />
+            <ProfileSnapshotTile label="IMC" value={bodyMassIndex === null ? '--' : bodyMassIndex.toFixed(1)} detail={getBodyMassIndexLabel(bodyMassIndex)} />
             <ProfileSnapshotTile label="Peso actual" value={weightLabel} detail="Se usa para tu perfil local y evolución." />
             <ProfileSnapshotTile label="Altura" value={`${profileDraft.height} cm`} detail="Parte de tu baseline corporal actual." />
             <ProfileSnapshotTile label="Días activos" value={String(settingsDraft.trainingSchedule.days.length)} detail={scheduleDaysLabel} />
@@ -240,6 +255,15 @@ export function Profile({ onBack }: ProfileProps) {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre</Label>
+              <Input
+                aria-label="Nombre"
+                value={profileDraft.name}
+                onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))}
+                className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
+              />
+            </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Edad</Label>
               <Input
@@ -491,6 +515,16 @@ export function Profile({ onBack }: ProfileProps) {
             Exporta o importa un backup local con entrenamientos, quick logs, sueño, comida, perfil y preferencias.
           </p>
 
+          {importFeedback ? (
+            <div className={`mt-4 rounded-[1.7rem] border px-4 py-3 text-sm font-bold ${
+              importFeedback.tone === 'good'
+                ? 'border-[#6EE7B7]/18 bg-[#6EE7B7]/10 text-white'
+                : 'border-red-500/18 bg-red-500/10 text-red-100'
+            }`}>
+              {importFeedback.message}
+            </div>
+          ) : null}
+
           <div className="mt-5 grid gap-3">
             <Button
               variant="outline"
@@ -529,6 +563,33 @@ export function Profile({ onBack }: ProfileProps) {
           Guardar cambios
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={isImportDialogOpen}
+        onOpenChange={(open) => {
+          setIsImportDialogOpen(open);
+          if (!open) {
+            setPendingImportData(null);
+          }
+        }}
+        title="Importar backup local"
+        description="Esto reemplazará los datos actuales del dispositivo por el contenido del backup seleccionado."
+        confirmLabel="Importar backup"
+        tone="danger"
+        onConfirm={() => {
+          if (!pendingImportData) {
+            return;
+          }
+
+          useStore.getState().hydrateAppStoreData(pendingImportData);
+          setPendingImportData(null);
+          setIsImportDialogOpen(false);
+          setImportFeedback({
+            tone: 'good',
+            message: 'Backup importado correctamente. La app ya está usando los datos nuevos sin recargar.',
+          });
+        }}
+      />
     </div>
   );
 }

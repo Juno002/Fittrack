@@ -330,7 +330,7 @@ export function ExercisePickerDialog({
                                   rel="noreferrer"
                                   className="inline-flex items-center text-[#6EE7B7] hover:underline"
                                 >
-                                  Ver demostración
+                                  Ver demostración externa
                                 </a>
                               )}
                             </div>

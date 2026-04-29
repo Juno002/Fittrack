@@ -29,7 +29,7 @@ export function Map({ onOpenWorkout }: MapProps) {
 
   const handleStartFocusedSession = () => {
     startDraftSession({
-      name: mapFocus.title,
+      name: mapFocus.hasTrainingData ? mapFocus.title : 'Sesión inicial',
       logs: recommendedExercises.slice(0, 2).map((exercise) => buildWorkoutLog(exercise)),
     });
     onOpenWorkout();
@@ -87,17 +87,39 @@ export function Map({ onOpenWorkout }: MapProps) {
                   <div>
                     <p className="text-sm font-black text-white">{formatMuscleGroup(muscleGroup)}</p>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                      {value >= 70 ? 'Recupera primero' : value >= 45 ? 'Carga moderada' : 'Listo para usar'}
+                      {!mapFocus.hasTrainingData
+                        ? 'Sin historial todavía'
+                        : value >= 70
+                          ? 'Recupera primero'
+                          : value >= 45
+                            ? 'Carga moderada'
+                            : 'Listo para usar'}
                     </p>
                   </div>
-                  <span className={`text-xl font-black ${value >= 70 ? 'text-[#F97373]' : value >= 45 ? 'text-[#F9B06E]' : 'text-[#6EE7B7]'}`}>
+                  <span className={`text-xl font-black ${
+                    !mapFocus.hasTrainingData
+                      ? 'text-zinc-400'
+                      : value >= 70
+                        ? 'text-[#F97373]'
+                        : value >= 45
+                          ? 'text-[#F9B06E]'
+                          : 'text-[#6EE7B7]'
+                  }`}>
                     {Math.round(value)}%
                   </span>
                 </div>
 
                 <div className="mt-3 h-2 rounded-full bg-white/5">
                   <div
-                    className={`h-full rounded-full ${value >= 70 ? 'bg-[#F97373]' : value >= 45 ? 'bg-[#F9B06E]' : 'bg-[#6EE7B7]'}`}
+                    className={`h-full rounded-full ${
+                      !mapFocus.hasTrainingData
+                        ? 'bg-zinc-600/40'
+                        : value >= 70
+                          ? 'bg-[#F97373]'
+                          : value >= 45
+                            ? 'bg-[#F9B06E]'
+                            : 'bg-[#6EE7B7]'
+                    }`}
                     style={{ width: `${Math.max(6, value)}%` }}
                   />
                 </div>
@@ -106,20 +128,37 @@ export function Map({ onOpenWorkout }: MapProps) {
           </div>
         </section>
 
-        <section className="rounded-[2.5rem] border border-[#F9B06E]/18 bg-[#F9B06E]/7 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex size-11 items-center justify-center rounded-[1.4rem] bg-[#0b1320] text-[#F9B06E]">
-              <ShieldAlert className="size-5" />
+        {mapFocus.hasTrainingData && mapFocus.highestFatigueMuscle ? (
+          <section className="rounded-[2.5rem] border border-[#F9B06E]/18 bg-[#F9B06E]/7 p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex size-11 items-center justify-center rounded-[1.4rem] bg-[#0b1320] text-[#F9B06E]">
+                <ShieldAlert className="size-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#F9B06E]">Precaución principal</p>
+                <h2 className="mt-2 text-xl font-black tracking-tight text-white">{formatMuscleGroup(mapFocus.highestFatigueMuscle)}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+                  Mantén baja la carga sobre este grupo mientras completas el plan de hoy.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#F9B06E]">Precaución principal</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">{formatMuscleGroup(mapFocus.highestFatigueMuscle)}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-200">
-                Mantén baja la carga sobre este grupo mientras completas el plan de hoy.
-              </p>
+          </section>
+        ) : (
+          <section className="rounded-[2.5rem] border border-white/8 bg-white/5 p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex size-11 items-center justify-center rounded-[1.4rem] bg-[#0b1320] text-zinc-400">
+                <ShieldAlert className="size-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sin sesgo artificial</p>
+                <h2 className="mt-2 text-xl font-black tracking-tight text-white">Todavía no marcamos una zona crítica</h2>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+                  Hasta que registres sesiones reales, el mapa evita inventar un grupo “más cargado” y se mantiene en modo neutral.
+                </p>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <div className="h-4" />
       </div>

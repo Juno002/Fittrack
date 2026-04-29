@@ -22,7 +22,7 @@ function createPersistedState(overrides: Partial<AppStoreData> = {}): AppStoreDa
       trainingSchedule: { days: ['mon', 'wed', 'fri'], preferredTime: 'afternoon' },
       reminders: { enabled: false, time: '18:30' },
     },
-    profile: { age: 25, weight: 70, height: 175, gender: 'male' },
+    profile: { name: 'Junior', age: 25, weight: 70, height: 175, gender: 'male' },
     draftSession: null,
     ...overrides,
   };
@@ -64,6 +64,7 @@ describe('App', () => {
     render(<Onboarding />);
 
     await user.click(await screen.findByRole('button', { name: /empezar/i }));
+    await user.type(await screen.findByRole('textbox', { name: 'Nombre' }), 'Junior');
 
     for (let step = 0; step < 4; step += 1) {
       await user.click(await screen.findByRole('button', { name: /siguiente/i }));
@@ -72,6 +73,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: /entrar a inicio/i }));
 
     expect(useStore.getState().settings.onboarded).toBe(true);
+    expect(useStore.getState().profile.name).toBe('Junior');
     expect(useStore.getState().weightLogs).toHaveLength(1);
   }, 10000);
 

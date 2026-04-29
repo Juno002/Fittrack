@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { WorkoutSetRow } from '@/features/workouts/WorkoutSetRow';
+import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import type { WorkoutLog } from '@/store/types';
 
@@ -35,8 +36,10 @@ export function WorkoutLogCard({
   onRemoveSet,
   onToggleSetCompleted,
 }: WorkoutLogCardProps) {
+  const completedSetCount = log.sets.filter((set) => set.completed).length;
+
   return (
-    <article className="overflow-hidden rounded-[2.5rem] border border-white/5 bg-[#121721] shadow-xl">
+    <article className="app-panel overflow-hidden rounded-[2.5rem] shadow-xl">
       <div className="space-y-5 p-6">
         <div className="flex items-start gap-4">
           <motion.button
@@ -51,8 +54,16 @@ export function WorkoutLogCard({
           <button type="button" className="min-w-0 flex-1 text-left py-1" onClick={onToggleExpand}>
             <p className="truncate text-lg font-black tracking-tight text-white">{log.exerciseName}</p>
             <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-              {log.muscleGroup} • {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'}
+              {formatMuscleGroup(log.muscleGroup)} • {log.sets.length} {log.sets.length === 1 ? 'serie' : 'series'}
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-300">
+                {log.isBodyweight ? 'Peso corporal' : 'Con carga'}
+              </span>
+              <span className="rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#6EE7B7]">
+                {completedSetCount}/{log.sets.length} completadas
+              </span>
+            </div>
           </button>
 
           <div className="flex items-center gap-1">

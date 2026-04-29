@@ -53,7 +53,7 @@ export function WorkoutHeader({
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-white/5 bg-[#121721] px-4 py-3 text-right">
+        <div className="app-metric-tile rounded-[2rem] px-4 py-3 text-right">
           <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Transcurrido</p>
           <p className="mt-1 text-2xl font-black tracking-tight text-[#6EE7B7]">{formatDuration(elapsedSeconds)}</p>
         </div>
@@ -79,7 +79,7 @@ export function WorkoutHeader({
         </div>
       )}
 
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="app-panel-soft flex items-center gap-2 overflow-x-auto rounded-[2rem] px-4 py-3 no-scrollbar">
         <span className="pr-2 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Timer</span>
         {REST_PRESETS.map((seconds) => {
           const isActive = restDurationSeconds === seconds;

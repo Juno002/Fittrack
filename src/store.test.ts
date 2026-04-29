@@ -97,7 +97,7 @@ describe('store migration', () => {
       },
       calorieGoal: 2400,
       macrosGoal: { protein: 180, carbs: 260, fat: 70 },
-      profile: { age: 31, weight: 78, height: 182, gender: 'male' },
+      profile: { name: 'Junior', age: 31, weight: 78, height: 182, gender: 'male' },
       activeSession: {
         name: 'Open draft',
         startTime: Date.parse('2026-04-26T16:00:00.000Z'),
@@ -128,6 +128,7 @@ describe('store migration', () => {
     expect(migrated.settings.connectedSignals).toEqual({ sleep: true, food: true, recovery: true });
     expect(migrated.settings.trainingSchedule).toEqual({ days: ['mon', 'wed', 'fri'], preferredTime: 'afternoon' });
     expect(migrated.settings.reminders).toEqual({ enabled: false, time: '18:30' });
+    expect(migrated.profile.name).toBe('Junior');
     expect(migrated.profile.age).toBe(31);
   });
 });
@@ -192,11 +193,27 @@ describe('daily planning selectors', () => {
     const dashboardCards = selectDashboardCards(state, referenceDate);
 
     expect(todayPlan.scheduledToday).toBe(true);
-    expect(todayPlan.ctaLabel).toBe('Empezar sesión');
+    expect(todayPlan.ctaLabel).toBe('Crear primera rutina');
     expect(todayPlan.tone).toBe('good');
     expect(todayPlan.steps.length).toBeGreaterThan(0);
     expect(daySummary.recoveryCheckIn?.notes).toBe('Listo para moverme');
     expect(dashboardCards.todaySummary.recoveryCheckIn?.energy).toBe(5);
+  });
+
+  it('stays neutral when the app has no training data yet', () => {
+    const state = createInitialAppStoreData();
+    state.settings.trainingSchedule = { days: ['wed'], preferredTime: 'morning' };
+
+    const referenceDate = new Date('2026-04-29T10:00:00.000Z');
+    const todayPlan = selectTodayPlan(state, referenceDate);
+    const dashboardCards = selectDashboardCards(state, referenceDate);
+
+    expect(dashboardCards.readiness.hasTrainingData).toBe(false);
+    expect(dashboardCards.readiness.readiness).toBeLessThan(100);
+    expect(todayPlan.title).toBe('Sesión de arranque');
+    expect(todayPlan.ctaLabel).toBe('Crear primera rutina');
+    expect(dashboardCards.mapFocus.highestFatigueMuscle).toBeNull();
+    expect(dashboardCards.mapFocus.title).toBe('Aún no hay carga acumulada');
   });
 });
 

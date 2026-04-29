@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { Search, Sparkles, Trophy } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ExerciseDetail } from '@/components/ExerciseDetail';
 import { ExerciseIcon } from '@/components/ExerciseIcon';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
   const data = useStoreData();
   const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
+  const hasTrainingData = data.sessions.length > 0;
   const draftSession = useStore((state) => state.draftSession);
   const startDraftSession = useStore((state) => state.startDraftSession);
   const addExerciseToDraft = useStore((state) => state.addExerciseToDraft);
@@ -34,6 +36,11 @@ export function Train({ onOpenWorkout }: TrainProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition | null>(null);
   const [viewMode, setViewMode] = useState<'catalog' | 'templates'>('catalog');
+  const [pendingRoutineStart, setPendingRoutineStart] = useState<
+    | { type: 'preset'; id: GuidedRoutinePresetId }
+    | { type: 'template'; id: string }
+    | null
+  >(null);
   const deferredQuery = useDeferredValue(searchQuery);
   const routinePresets = useMemo(
     () => (['upper', 'lower', 'core'] as GuidedRoutinePresetId[])
@@ -76,6 +83,11 @@ export function Train({ onOpenWorkout }: TrainProps) {
   };
 
   const handleStartTemplate = (template: WorkoutTemplate) => {
+    if (draftSession && draftSession.logs.length > 0) {
+      setPendingRoutineStart({ type: 'template', id: template.id });
+      return;
+    }
+
     const freshLogs = template.logs.map((log) => ({
       ...log,
       id: crypto.randomUUID(),
@@ -96,10 +108,8 @@ export function Train({ onOpenWorkout }: TrainProps) {
     }
 
     if (draftSession && draftSession.logs.length > 0) {
-      const shouldReplace = window.confirm('Ya tienes una sesión en borrador. ¿Quieres reemplazarla por esta rutina guiada?');
-      if (!shouldReplace) {
-        return;
-      }
+      setPendingRoutineStart({ type: 'preset', id: presetId });
+      return;
     }
 
     startDraftSession({
@@ -107,6 +117,42 @@ export function Train({ onOpenWorkout }: TrainProps) {
       logs: preset.logs,
     });
     onOpenWorkout();
+  };
+
+  const confirmPendingRoutineStart = () => {
+    if (!pendingRoutineStart) {
+      return;
+    }
+
+    if (pendingRoutineStart.type === 'preset') {
+      const preset = routinePresets.find((entry) => entry.id === pendingRoutineStart.id);
+      if (preset) {
+        startDraftSession({
+          name: preset.name,
+          logs: preset.logs,
+        });
+        onOpenWorkout();
+      }
+    }
+
+    if (pendingRoutineStart.type === 'template') {
+      const template = data.templates.find((entry) => entry.id === pendingRoutineStart.id);
+      if (template) {
+        const freshLogs = template.logs.map((log) => ({
+          ...log,
+          id: crypto.randomUUID(),
+          sets: log.sets.map((set) => ({ ...set, completed: false })),
+        }));
+
+        startDraftSession({
+          name: template.name,
+          logs: freshLogs,
+        });
+        onOpenWorkout();
+      }
+    }
+
+    setPendingRoutineStart(null);
   };
 
   return (
@@ -119,7 +165,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
         </p>
       </header>
 
-      <div className="px-4 pb-32">
+      <div className="flex-1 overflow-y-auto px-4 pb-32">
         <section className="app-panel rounded-[2.5rem] p-5">
           <div className="flex rounded-[1.6rem] bg-[#0b1320] p-1.5">
             <button
@@ -231,12 +277,20 @@ export function Train({ onOpenWorkout }: TrainProps) {
                 ) : (
                   filteredExercises.map((exercise) => {
                     const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
-                    const statusLabel = exerciseFatigue >= 70 ? 'Recupera' : exerciseFatigue >= 45 ? 'Moderado' : 'Listo';
-                    const statusClass = exerciseFatigue >= 70
-                      ? 'text-[#F97373]'
-                      : exerciseFatigue >= 45
-                        ? 'text-[#F9B06E]'
-                        : 'text-[#6EE7B7]';
+                    const statusLabel = !hasTrainingData
+                      ? 'Base'
+                      : exerciseFatigue >= 70
+                        ? 'Recupera'
+                        : exerciseFatigue >= 45
+                          ? 'Moderado'
+                          : 'Listo';
+                    const statusClass = !hasTrainingData
+                      ? 'text-zinc-400'
+                      : exerciseFatigue >= 70
+                        ? 'text-[#F97373]'
+                        : exerciseFatigue >= 45
+                          ? 'text-[#F9B06E]'
+                          : 'text-[#6EE7B7]';
 
                     return (
                       <button
@@ -339,7 +393,9 @@ export function Train({ onOpenWorkout }: TrainProps) {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#6EE7B7]">Tip de readiness</p>
               <p className="mt-2 text-sm leading-relaxed text-zinc-200">
-                Si hoy un grupo marca más de 70% de fatiga, usa esta pantalla para elegir alternativas del catálogo en lugar de forzar la rutina.
+                {hasTrainingData
+                  ? 'Si hoy un grupo marca más de 70% de fatiga, usa esta pantalla para elegir alternativas del catálogo en lugar de forzar la rutina.'
+                  : 'Mientras no haya historial, esta pantalla se mantiene neutral y te deja empezar por rutinas base o ejercicios corporales sin asumir fatiga previa.'}
               </p>
             </div>
           </div>
@@ -355,6 +411,20 @@ export function Train({ onOpenWorkout }: TrainProps) {
           }
         }}
         onAddWorkout={handleAddWorkout}
+      />
+
+      <ConfirmDialog
+        open={pendingRoutineStart !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingRoutineStart(null);
+          }
+        }}
+        title="Reemplazar borrador actual"
+        description="Ya tienes una sesión en progreso. Si continúas, la rutina nueva sustituirá el borrador actual."
+        confirmLabel="Reemplazar rutina"
+        tone="danger"
+        onConfirm={confirmPendingRoutineStart}
       />
     </div>
   );

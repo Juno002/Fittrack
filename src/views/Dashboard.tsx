@@ -97,7 +97,13 @@ function ActionCard({ label, value, hint, icon: Icon, onClick }: ActionCardProps
   );
 }
 
-function ReadinessRing({ readiness }: { readiness: number }) {
+function ReadinessRing({
+  readiness,
+  caption,
+}: {
+  readiness: number;
+  caption: string;
+}) {
   const progress = Math.max(0, Math.min(100, readiness));
   const fillDegrees = Math.round((progress / 100) * 360);
 
@@ -115,7 +121,7 @@ function ReadinessRing({ readiness }: { readiness: number }) {
           <span className="text-5xl font-black leading-none tracking-tighter text-white">{progress}</span>
           <span className="pb-1 text-base font-black text-zinc-500">%</span>
         </div>
-        <p className="mt-2 text-[10px] font-black uppercase tracking-[0.24em] text-[#6EE7B7]">Ready to train</p>
+        <p className="mt-2 text-[10px] font-black uppercase tracking-[0.24em] text-[#6EE7B7]">{caption}</p>
       </div>
     </div>
   );
@@ -232,7 +238,10 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
         <section className="app-panel overflow-hidden rounded-[2.8rem] p-6">
           <div className="grid gap-6">
             <div className="flex flex-col gap-6 md:flex-row md:items-center">
-              <ReadinessRing readiness={cards.readiness.readiness} />
+              <ReadinessRing
+                readiness={cards.readiness.readiness}
+                caption={cards.readiness.hasTrainingData ? 'Readiness real' : 'Base inicial'}
+              />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap gap-2">
@@ -464,7 +473,9 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="app-metric-tile rounded-[1.7rem] px-4 py-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Mayor carga</p>
-              <p className="mt-2 text-sm font-black text-white">{formatMuscleGroup(cards.mapFocus.highestFatigueMuscle)}</p>
+              <p className="mt-2 text-sm font-black text-white">
+                {cards.mapFocus.highestFatigueMuscle ? formatMuscleGroup(cards.mapFocus.highestFatigueMuscle) : 'Sin datos'}
+              </p>
             </div>
             <div className="app-metric-tile rounded-[1.7rem] px-4 py-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Fatiga</p>

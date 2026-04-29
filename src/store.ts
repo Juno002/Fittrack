@@ -60,11 +60,12 @@ export type {
 } from '@/store/types';
 
 export const STORAGE_KEY = 'fittrack-storage';
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 const MUSCLE_GROUP_SET = new Set(MUSCLE_GROUPS);
 const TRAINING_DAY_SET = new Set<TrainingDay>(TRAINING_DAYS);
 
 const DEFAULT_PROFILE: UserProfile = {
+  name: '',
   age: 25,
   weight: 70,
   height: 175,
@@ -477,6 +478,23 @@ function normalizeSettings(value: unknown): AppSettings {
   };
 }
 
+function normalizeUserProfile(value: unknown): UserProfile {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_PROFILE };
+  }
+
+  const profile = value as Record<string, unknown>;
+  return {
+    name: typeof profile.name === 'string' ? profile.name : DEFAULT_PROFILE.name,
+    age: typeof profile.age === 'number' ? profile.age : DEFAULT_PROFILE.age,
+    weight: typeof profile.weight === 'number' ? profile.weight : DEFAULT_PROFILE.weight,
+    height: typeof profile.height === 'number' ? profile.height : DEFAULT_PROFILE.height,
+    gender: profile.gender === 'female' || profile.gender === 'other' || profile.gender === 'male'
+      ? profile.gender
+      : DEFAULT_PROFILE.gender,
+  };
+}
+
 function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
   if (!Array.isArray(rawExercises)) {
     return STARTER_EXERCISES;
@@ -602,10 +620,7 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
     settings: normalizeSettings(rawState.settings),
     calorieGoal: typeof rawState.calorieGoal === 'number' ? rawState.calorieGoal : defaults.calorieGoal,
     macrosGoal: isMacroGoal(rawState.macrosGoal) ? rawState.macrosGoal : defaults.macrosGoal,
-    profile: {
-      ...defaults.profile,
-      ...(rawState.profile && typeof rawState.profile === 'object' ? rawState.profile as Partial<UserProfile> : {}),
-    },
+    profile: normalizeUserProfile(rawState.profile),
     draftSession,
   };
 }
