@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 type DateLike = Date | string | number;
 
@@ -38,7 +39,7 @@ export function compareDayKeys(left: string, right: string) {
 }
 
 export function formatDayKey(dayKey: string, pattern: string) {
-  return format(parseDayKey(dayKey), pattern);
+  return format(parseDayKey(dayKey), pattern, { locale: es });
 }
 
 export function getRecentDayKeys(days: number, anchor: DateLike = new Date()) {

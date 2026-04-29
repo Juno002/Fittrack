@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -105,15 +106,16 @@ export function WorkoutLogCard({
             >
               <div className="space-y-3 pt-2">
                 {log.sets.map((set, setIndex) => (
-                  <WorkoutSetRow
-                    key={`${log.id}-${setIndex}`}
-                    set={set}
-                    setIndex={setIndex}
-                    isBodyweight={log.isBodyweight}
-                    onToggleComplete={() => onToggleSetCompleted(setIndex)}
-                    onChange={(field, value) => onUpdateSet(setIndex, field, value)}
-                    onRemove={() => onRemoveSet(setIndex)}
-                  />
+                  <Fragment key={`${log.id}-${setIndex}`}>
+                    <WorkoutSetRow
+                      set={set}
+                      setIndex={setIndex}
+                      isBodyweight={log.isBodyweight}
+                      onToggleComplete={() => onToggleSetCompleted(setIndex)}
+                      onChange={(field, value) => onUpdateSet(setIndex, field, value)}
+                      onRemove={() => onRemoveSet(setIndex)}
+                    />
+                  </Fragment>
                 ))}
 
                 <motion.button

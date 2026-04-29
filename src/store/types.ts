@@ -22,6 +22,12 @@ export const EXERCISE_ICON_NAMES = [
 
 export type ExerciseIconName = (typeof EXERCISE_ICON_NAMES)[number];
 
+export const TRAINING_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+export type TrainingDay = (typeof TRAINING_DAYS)[number];
+
+export const PREFERRED_TRAINING_TIMES = ['morning', 'afternoon', 'evening'] as const;
+export type PreferredTrainingTime = (typeof PREFERRED_TRAINING_TIMES)[number];
+
 export interface ExerciseCatalogEntry {
   id: string;
   name: string;
@@ -121,6 +127,41 @@ export interface BodyWeightLog {
   dayKey: string;
   loggedAt: string;
   weight: number;
+}
+
+export interface RecoveryCheckIn {
+  id: string;
+  dayKey: string;
+  loggedAt: string;
+  soreness: number;
+  energy: number;
+  stress: number;
+  notes: string;
+}
+
+export interface ConnectedSignals {
+  sleep: boolean;
+  food: boolean;
+  recovery: boolean;
+}
+
+export interface TrainingSchedule {
+  days: TrainingDay[];
+  preferredTime: PreferredTrainingTime;
+}
+
+export interface ReminderSettings {
+  enabled: boolean;
+  time: string;
+}
+
+export interface AppSettings {
+  unitSystem: 'metric' | 'imperial';
+  onboarded: boolean;
+  defaultRestDuration?: number;
+  connectedSignals: ConnectedSignals;
+  trainingSchedule: TrainingSchedule;
+  reminders: ReminderSettings;
 }
 
 export interface DraftSessionSeed {

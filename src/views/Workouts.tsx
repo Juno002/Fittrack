@@ -1,5 +1,5 @@
 import { differenceInSeconds } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Dumbbell, List, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -37,6 +37,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [viewMode, setViewMode] = useState<'entrenar' | 'editar'>('entrenar');
+  const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
 
   useEffect(() => {
@@ -66,6 +67,10 @@ export function Workouts({ onExit }: WorkoutsProps) {
       return nextState;
     });
   }, [draftSession]);
+
+  useEffect(() => {
+    setGuidedStepIndex(0);
+  }, [draftSession?.id]);
 
   const elapsedSeconds = draftSession
     ? Math.max(0, differenceInSeconds(new Date(clock), new Date(draftSession.startedAt)))
@@ -136,7 +141,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-[#080B11] overflow-hidden">
+    <div className="app-screen flex h-[100dvh] flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {draftSession.logs.length > 0 && viewMode === 'editar' && (
           <motion.div
@@ -192,7 +197,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
               exit={{ opacity: 0, scale: 0.95 }}
               className="h-full px-6 flex flex-col items-center justify-center"
             >
-              <div className="flex flex-col items-center justify-center rounded-[3rem] border border-dashed border-white/10 bg-[#121721]/50 p-10 text-center w-full max-w-sm">
+              <div className="app-panel flex w-full max-w-sm flex-col items-center justify-center rounded-[3rem] border border-dashed border-white/10 p-10 text-center">
                 <div className="size-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
                   <Plus className="size-10 text-zinc-500" />
                 </div>
@@ -220,12 +225,12 @@ export function Workouts({ onExit }: WorkoutsProps) {
               <WorkoutFocusView
                 draftSession={draftSession}
                 elapsedSeconds={elapsedSeconds}
-                restSeconds={restSeconds}
-                onSkipRest={clearDraftRestTimer}
+                guidedStepIndex={guidedStepIndex}
+                onAdvanceGuidedStep={() => setGuidedStepIndex((current) => current + 1)}
+                onClearStoredRest={clearDraftRestTimer}
                 onToggleSetCompleted={(logId, setIndex) => {
                   toggleDraftSetCompleted(logId, setIndex);
                 }}
-                onUpdateSet={(logId, setIndex, field, value) => updateDraftSet(logId, setIndex, { [field]: value })}
                 onFinish={() => setIsFinishing(true)}
                 onGoToEdit={() => setViewMode('editar')}
               />
@@ -241,25 +246,26 @@ export function Workouts({ onExit }: WorkoutsProps) {
               <div className="flex-1 overflow-y-auto px-6 pb-48 pt-2">
                 <div className="space-y-4 max-w-lg mx-auto">
                   {draftSession.logs.map((log) => (
-                    <WorkoutLogCard
-                      key={log.id}
-                      log={log}
-                      expanded={expandedLogs[log.id] ?? false}
-                      onToggleExpand={() => setExpandedLogs((current) => ({ ...current, [log.id]: !current[log.id] }))}
-                      onToggleBodyweight={(checked) => toggleDraftLogBodyweight(log.id, checked)}
-                      onRemoveLog={() => removeDraftLog(log.id)}
-                      onDuplicateLog={() => duplicateDraftLog(log.id)}
-                      onAddSet={() => addSetToDraftLog(log.id)}
-                      onUpdateSet={(setIndex, field, value) => updateDraftSet(log.id, setIndex, { [field]: value })}
-                      onRemoveSet={(setIndex) => removeDraftSet(log.id, setIndex)}
-                      onToggleSetCompleted={(setIndex) => toggleDraftSetCompleted(log.id, setIndex)}
-                    />
+                    <Fragment key={log.id}>
+                      <WorkoutLogCard
+                        log={log}
+                        expanded={expandedLogs[log.id] ?? false}
+                        onToggleExpand={() => setExpandedLogs((current) => ({ ...current, [log.id]: !current[log.id] }))}
+                        onToggleBodyweight={(checked) => toggleDraftLogBodyweight(log.id, checked)}
+                        onRemoveLog={() => removeDraftLog(log.id)}
+                        onDuplicateLog={() => duplicateDraftLog(log.id)}
+                        onAddSet={() => addSetToDraftLog(log.id)}
+                        onUpdateSet={(setIndex, field, value) => updateDraftSet(log.id, setIndex, { [field]: value })}
+                        onRemoveSet={(setIndex) => removeDraftSet(log.id, setIndex)}
+                        onToggleSetCompleted={(setIndex) => toggleDraftSetCompleted(log.id, setIndex)}
+                      />
+                    </Fragment>
                   ))}
                 </div>
               </div>
               
               <div className="absolute inset-x-0 bottom-0 z-40 p-6 pointer-events-none">
-                <div className="max-w-md mx-auto w-full bg-[#080B11]/90 backdrop-blur-xl border border-white/10 rounded-[3rem] p-4 pointer-events-auto shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+                <div className="app-panel max-w-md mx-auto w-full rounded-[3rem] p-4 pointer-events-auto">
                   <div className="flex gap-3 mb-3">
                     <Button
                       className="h-16 flex-1 rounded-[2rem] bg-white text-[10px] font-black uppercase tracking-[0.3em] text-[#080B11] shadow-2xl transition-all hover:bg-white/90"

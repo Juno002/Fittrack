@@ -17,6 +17,7 @@ export function useStoreData(): AppStoreData {
   const sleepLogs = useStore((state) => state.sleepLogs);
   const templates = useStore((state) => state.templates);
   const weightLogs = useStore((state) => state.weightLogs);
+  const recoveryCheckins = useStore((state) => state.recoveryCheckins);
   const settings = useStore((state) => state.settings);
   const calorieGoal = useStore((state) => state.calorieGoal);
   const macrosGoal = useStore((state) => state.macrosGoal);
@@ -24,7 +25,20 @@ export function useStoreData(): AppStoreData {
   const draftSession = useStore((state) => state.draftSession);
 
   return useMemo<AppStoreData>(
-    () => ({ customExercises, sessions, templates, weightLogs, settings, foods, sleepLogs, calorieGoal, macrosGoal, profile, draftSession }),
-    [customExercises, sessions, templates, weightLogs, settings, foods, sleepLogs, calorieGoal, macrosGoal, profile, draftSession],
+    () => ({
+      customExercises,
+      sessions,
+      templates,
+      foods,
+      sleepLogs,
+      weightLogs,
+      recoveryCheckins,
+      settings,
+      calorieGoal,
+      macrosGoal,
+      profile,
+      draftSession,
+    }),
+    [customExercises, sessions, templates, foods, sleepLogs, weightLogs, recoveryCheckins, settings, calorieGoal, macrosGoal, profile, draftSession],
   );
 }

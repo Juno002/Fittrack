@@ -11,22 +11,33 @@ import {
   finalizeDraftSession as buildFinalSession,
 } from '@/lib/workout';
 import type {
+  AppSettings,
+  BodyWeightLog,
+  ConnectedSignals,
   CustomExercise,
   DraftSession,
   DraftSessionSeed,
   ExerciseDefinition,
   FoodEntry,
   MacroGoal,
+  PreferredTrainingTime,
+  RecoveryCheckIn,
+  ReminderSettings,
   SleepLog,
+  TrainingDay,
+  TrainingSchedule,
   UserProfile,
   WorkoutLog,
   WorkoutSession,
   WorkoutSet,
   WorkoutTemplate,
-  BodyWeightLog,
 } from '@/store/types';
+import { MUSCLE_GROUPS, TRAINING_DAYS } from '@/store/types';
 
 export type {
+  AppSettings,
+  BodyWeightLog,
+  ConnectedSignals,
   CustomExercise,
   DraftSession,
   DraftSessionSeed,
@@ -36,7 +47,12 @@ export type {
   FoodEntry,
   MacroGoal,
   MuscleGroup,
+  PreferredTrainingTime,
+  RecoveryCheckIn,
+  ReminderSettings,
   SleepLog,
+  TrainingDay,
+  TrainingSchedule,
   UserProfile,
   WorkoutLog,
   WorkoutSession,
@@ -44,8 +60,9 @@ export type {
 } from '@/store/types';
 
 export const STORAGE_KEY = 'fittrack-storage';
-const STORAGE_VERSION = 2;
-const MUSCLE_GROUPS = new Set(['chest', 'back', 'legs', 'shoulders', 'arms', 'core']);
+const STORAGE_VERSION = 3;
+const MUSCLE_GROUP_SET = new Set(MUSCLE_GROUPS);
+const TRAINING_DAY_SET = new Set<TrainingDay>(TRAINING_DAYS);
 
 const DEFAULT_PROFILE: UserProfile = {
   age: 25,
@@ -60,6 +77,45 @@ const DEFAULT_MACROS: MacroGoal = {
   fat: 65,
 };
 
+const DEFAULT_CONNECTED_SIGNALS: ConnectedSignals = {
+  sleep: true,
+  food: true,
+  recovery: true,
+};
+
+const DEFAULT_TRAINING_SCHEDULE: TrainingSchedule = {
+  days: ['mon', 'wed', 'fri'],
+  preferredTime: 'afternoon',
+};
+
+const DEFAULT_REMINDERS: ReminderSettings = {
+  enabled: false,
+  time: '18:30',
+};
+
+const DEFAULT_SETTINGS: AppSettings = {
+  unitSystem: 'metric',
+  onboarded: false,
+  defaultRestDuration: 60,
+  connectedSignals: DEFAULT_CONNECTED_SIGNALS,
+  trainingSchedule: DEFAULT_TRAINING_SCHEDULE,
+  reminders: DEFAULT_REMINDERS,
+};
+
+function createDefaultSettings(): AppSettings {
+  return {
+    unitSystem: DEFAULT_SETTINGS.unitSystem,
+    onboarded: DEFAULT_SETTINGS.onboarded,
+    defaultRestDuration: DEFAULT_SETTINGS.defaultRestDuration,
+    connectedSignals: { ...DEFAULT_SETTINGS.connectedSignals },
+    trainingSchedule: {
+      days: [...DEFAULT_SETTINGS.trainingSchedule.days],
+      preferredTime: DEFAULT_SETTINGS.trainingSchedule.preferredTime,
+    },
+    reminders: { ...DEFAULT_SETTINGS.reminders },
+  };
+}
+
 export interface AppStoreData {
   customExercises: CustomExercise[];
   sessions: WorkoutSession[];
@@ -67,11 +123,8 @@ export interface AppStoreData {
   foods: FoodEntry[];
   sleepLogs: SleepLog[];
   weightLogs: BodyWeightLog[];
-  settings: {
-    unitSystem: 'metric' | 'imperial';
-    onboarded: boolean;
-    defaultRestDuration?: number;
-  };
+  recoveryCheckins: RecoveryCheckIn[];
+  settings: AppSettings;
   calorieGoal: number;
   macrosGoal: MacroGoal;
   profile: UserProfile;
@@ -81,7 +134,7 @@ export interface AppStoreData {
 interface AppActions {
   saveCustomExercise: (exercise: Omit<CustomExercise, 'createdAt' | 'source' | 'iconName'> & Partial<Pick<CustomExercise, 'createdAt' | 'iconName'>>) => ExerciseDefinition;
   updateProfile: (profile: Partial<UserProfile>) => void;
-  updateSettings: (settings: Partial<AppStoreData['settings']>) => void;
+  updateSettings: (settings: Partial<AppSettings>) => void;
   logBodyWeight: (weight: number) => void;
   setCalorieGoal: (goal: number) => void;
   setMacrosGoal: (goal: MacroGoal) => void;
@@ -89,6 +142,8 @@ interface AppActions {
   deleteFoodEntry: (id: string) => void;
   saveSleepLog: (entry: Omit<SleepLog, 'loggedAt'> & { loggedAt?: string }) => void;
   deleteSleepLog: (id: string) => void;
+  saveRecoveryCheckIn: (entry: Omit<RecoveryCheckIn, 'loggedAt'> & { loggedAt?: string }) => void;
+  deleteRecoveryCheckIn: (id: string) => void;
   startDraftSession: (seed?: DraftSessionSeed) => void;
   discardDraftSession: () => void;
   setDraftName: (name: string) => void;
@@ -119,11 +174,8 @@ export function createInitialAppStoreData(): AppStoreData {
     foods: [],
     sleepLogs: [],
     weightLogs: [],
-    settings: {
-      unitSystem: 'metric',
-      onboarded: false,
-      defaultRestDuration: 60,
-    },
+    recoveryCheckins: [],
+    settings: createDefaultSettings(),
     calorieGoal: 2000,
     macrosGoal: DEFAULT_MACROS,
     profile: DEFAULT_PROFILE,
@@ -168,7 +220,10 @@ function isMacroGoal(value: unknown): value is MacroGoal {
   return typeof goal.protein === 'number' && typeof goal.carbs === 'number' && typeof goal.fat === 'number';
 }
 
-function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutLog | null {
+function normalizeWorkoutLog(
+  rawLog: unknown,
+  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+): WorkoutLog | null {
   if (!rawLog || typeof rawLog !== 'object') {
     return null;
   }
@@ -176,8 +231,8 @@ function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name:
   const legacyLog = rawLog as Record<string, unknown>;
   const exerciseId = typeof legacyLog.exerciseId === 'string' ? legacyLog.exerciseId : 'exercise';
   const exercise = exerciseIndex.get(exerciseId);
-  const muscleGroup = MUSCLE_GROUPS.has(exercise?.muscleGroup ?? '')
-    ? exercise!.muscleGroup as WorkoutLog['muscleGroup']
+  const muscleGroup = MUSCLE_GROUP_SET.has(exercise?.muscleGroup as typeof MUSCLE_GROUPS[number])
+    ? (exercise?.muscleGroup as WorkoutLog['muscleGroup'])
     : 'core';
 
   return {
@@ -188,7 +243,7 @@ function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name:
       : exercise?.name ?? exerciseId.replace(/_/g, ' '),
     muscleGroup,
     iconName: typeof legacyLog.iconName === 'string'
-      ? legacyLog.iconName as WorkoutLog['iconName']
+      ? (legacyLog.iconName as WorkoutLog['iconName'])
       : getExerciseIconName(muscleGroup, exercise?.iconName),
     isBodyweight: typeof legacyLog.isBodyweight === 'boolean' ? legacyLog.isBodyweight : Boolean(exercise?.isBodyweight),
     sets: Array.isArray(legacyLog.sets)
@@ -197,7 +252,10 @@ function normalizeWorkoutLog(rawLog: unknown, exerciseIndex: Map<string, { name:
   };
 }
 
-function normalizeSession(rawSession: unknown, exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>): WorkoutSession | null {
+function normalizeSession(
+  rawSession: unknown,
+  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+): WorkoutSession | null {
   if (!rawSession || typeof rawSession !== 'object') {
     return null;
   }
@@ -226,6 +284,29 @@ function normalizeSession(rawSession: unknown, exerciseIndex: Map<string, { name
   };
 }
 
+function normalizeTemplate(
+  rawTemplate: unknown,
+  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+): WorkoutTemplate | null {
+  if (!rawTemplate || typeof rawTemplate !== 'object') {
+    return null;
+  }
+
+  const template = rawTemplate as Record<string, unknown>;
+  const logs = Array.isArray(template.logs)
+    ? template.logs
+        .map((log) => normalizeWorkoutLog(log, exerciseIndex))
+        .filter((log): log is WorkoutLog => log !== null)
+    : [];
+
+  return {
+    id: typeof template.id === 'string' ? template.id : crypto.randomUUID(),
+    name: typeof template.name === 'string' ? template.name : 'Plantilla',
+    createdAt: typeof template.createdAt === 'string' ? template.createdAt : new Date().toISOString(),
+    logs,
+  };
+}
+
 function normalizeFoodEntry(rawEntry: unknown): FoodEntry | null {
   if (!rawEntry || typeof rawEntry !== 'object') {
     return null;
@@ -242,7 +323,7 @@ function normalizeFoodEntry(rawEntry: unknown): FoodEntry | null {
     id: typeof entry.id === 'string' ? entry.id : `food-${dayKey}`,
     dayKey,
     consumedAt: typeof entry.consumedAt === 'string' ? entry.consumedAt : dayKeyToIso(dayKey, 12),
-    name: typeof entry.name === 'string' ? entry.name : 'Meal',
+    name: typeof entry.name === 'string' ? entry.name : 'Comida',
     calories: typeof entry.calories === 'number' ? entry.calories : 0,
     protein: typeof entry.protein === 'number' ? entry.protein : 0,
     carbs: typeof entry.carbs === 'number' ? entry.carbs : 0,
@@ -271,6 +352,131 @@ function normalizeSleepLog(rawEntry: unknown): SleepLog | null {
   };
 }
 
+function clampCheckInScore(value: unknown, fallback = 3) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(5, Math.max(1, Math.round(value)));
+}
+
+function normalizeRecoveryCheckIn(rawEntry: unknown): RecoveryCheckIn | null {
+  if (!rawEntry || typeof rawEntry !== 'object') {
+    return null;
+  }
+
+  const entry = rawEntry as Record<string, unknown>;
+  const dayKey = typeof entry.dayKey === 'string'
+    ? entry.dayKey
+    : typeof entry.loggedAt === 'string'
+      ? toDayKey(entry.loggedAt)
+      : toDayKey();
+
+  return {
+    id: typeof entry.id === 'string' ? entry.id : `recovery-${dayKey}`,
+    dayKey,
+    loggedAt: typeof entry.loggedAt === 'string' ? entry.loggedAt : dayKeyToIso(dayKey, 9),
+    soreness: clampCheckInScore(entry.soreness),
+    energy: clampCheckInScore(entry.energy),
+    stress: clampCheckInScore(entry.stress),
+    notes: typeof entry.notes === 'string' ? entry.notes : '',
+  };
+}
+
+function normalizeWeightLog(rawEntry: unknown): BodyWeightLog | null {
+  if (!rawEntry || typeof rawEntry !== 'object') {
+    return null;
+  }
+
+  const entry = rawEntry as Record<string, unknown>;
+  if (typeof entry.weight !== 'number') {
+    return null;
+  }
+
+  const dayKey = typeof entry.dayKey === 'string'
+    ? entry.dayKey
+    : typeof entry.loggedAt === 'string'
+      ? toDayKey(entry.loggedAt)
+      : toDayKey();
+
+  return {
+    id: typeof entry.id === 'string' ? entry.id : `weight-${dayKey}`,
+    dayKey,
+    loggedAt: typeof entry.loggedAt === 'string' ? entry.loggedAt : dayKeyToIso(dayKey, 7),
+    weight: entry.weight,
+  };
+}
+
+function normalizeConnectedSignals(value: unknown): ConnectedSignals {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_CONNECTED_SIGNALS };
+  }
+
+  const signals = value as Partial<Record<keyof ConnectedSignals, unknown>>;
+  return {
+    sleep: typeof signals.sleep === 'boolean' ? signals.sleep : DEFAULT_CONNECTED_SIGNALS.sleep,
+    food: typeof signals.food === 'boolean' ? signals.food : DEFAULT_CONNECTED_SIGNALS.food,
+    recovery: typeof signals.recovery === 'boolean' ? signals.recovery : DEFAULT_CONNECTED_SIGNALS.recovery,
+  };
+}
+
+function normalizePreferredTrainingTime(value: unknown): PreferredTrainingTime {
+  return value === 'morning' || value === 'afternoon' || value === 'evening'
+    ? value
+    : DEFAULT_TRAINING_SCHEDULE.preferredTime;
+}
+
+function normalizeTrainingSchedule(value: unknown): TrainingSchedule {
+  if (!value || typeof value !== 'object') {
+    return {
+      days: [...DEFAULT_TRAINING_SCHEDULE.days],
+      preferredTime: DEFAULT_TRAINING_SCHEDULE.preferredTime,
+    };
+  }
+
+  const schedule = value as Record<string, unknown>;
+  const days = Array.isArray(schedule.days)
+    ? schedule.days.filter((day): day is TrainingDay => typeof day === 'string' && TRAINING_DAY_SET.has(day as TrainingDay))
+    : DEFAULT_TRAINING_SCHEDULE.days;
+
+  return {
+    days: days.length > 0 ? Array.from(new Set(days)) : [...DEFAULT_TRAINING_SCHEDULE.days],
+    preferredTime: normalizePreferredTrainingTime(schedule.preferredTime),
+  };
+}
+
+function normalizeReminders(value: unknown): ReminderSettings {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_REMINDERS };
+  }
+
+  const reminders = value as Record<string, unknown>;
+  return {
+    enabled: typeof reminders.enabled === 'boolean' ? reminders.enabled : DEFAULT_REMINDERS.enabled,
+    time: typeof reminders.time === 'string' ? reminders.time : DEFAULT_REMINDERS.time,
+  };
+}
+
+function normalizeSettings(value: unknown): AppSettings {
+  const defaults = createDefaultSettings();
+
+  if (!value || typeof value !== 'object') {
+    return defaults;
+  }
+
+  const settings = value as Record<string, unknown>;
+  return {
+    unitSystem: settings.unitSystem === 'imperial' ? 'imperial' : defaults.unitSystem,
+    onboarded: typeof settings.onboarded === 'boolean' ? settings.onboarded : defaults.onboarded,
+    defaultRestDuration: typeof settings.defaultRestDuration === 'number'
+      ? Math.max(15, settings.defaultRestDuration)
+      : defaults.defaultRestDuration,
+    connectedSignals: normalizeConnectedSignals(settings.connectedSignals),
+    trainingSchedule: normalizeTrainingSchedule(settings.trainingSchedule),
+    reminders: normalizeReminders(settings.reminders),
+  };
+}
+
 function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
   if (!Array.isArray(rawExercises)) {
     return STARTER_EXERCISES;
@@ -287,7 +493,7 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         typeof value.id !== 'string' ||
         typeof value.name !== 'string' ||
         typeof value.muscleGroup !== 'string' ||
-        !MUSCLE_GROUPS.has(value.muscleGroup)
+        !MUSCLE_GROUP_SET.has(value.muscleGroup as typeof MUSCLE_GROUPS[number])
       ) {
         return null;
       }
@@ -332,6 +538,11 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
         .map((session) => normalizeSession(session, exerciseIndex))
         .filter((session): session is WorkoutSession => session !== null)
     : [];
+  const templates = Array.isArray(rawState.templates)
+    ? rawState.templates
+        .map((template) => normalizeTemplate(template, exerciseIndex))
+        .filter((template): template is WorkoutTemplate => template !== null)
+    : [];
   const foods = Array.isArray(rawState.foods)
     ? rawState.foods
         .map(normalizeFoodEntry)
@@ -341,6 +552,16 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
     ? rawState.sleepLogs
         .map(normalizeSleepLog)
         .filter((entry): entry is SleepLog => entry !== null)
+    : [];
+  const weightLogs = Array.isArray(rawState.weightLogs)
+    ? rawState.weightLogs
+        .map(normalizeWeightLog)
+        .filter((entry): entry is BodyWeightLog => entry !== null)
+    : [];
+  const recoveryCheckins = Array.isArray(rawState.recoveryCheckins)
+    ? rawState.recoveryCheckins
+        .map(normalizeRecoveryCheckIn)
+        .filter((entry): entry is RecoveryCheckIn => entry !== null)
     : [];
   const draftSessionSource = rawState.draftSession ?? rawState.activeSession;
   const draftSession = (() => {
@@ -365,7 +586,7 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
       logs,
       restDurationSeconds: typeof legacyDraft.restDurationSeconds === 'number'
         ? legacyDraft.restDurationSeconds
-        : 60,
+        : defaults.settings.defaultRestDuration,
       restTimerEndsAt: typeof legacyDraft.restTimerEndsAt === 'string' ? legacyDraft.restTimerEndsAt : null,
     });
   })();
@@ -373,13 +594,12 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
   return {
     customExercises,
     sessions,
+    templates,
     foods,
     sleepLogs,
-    templates: Array.isArray(rawState.templates) ? rawState.templates : defaults.templates,
-    weightLogs: Array.isArray(rawState.weightLogs) ? rawState.weightLogs : defaults.weightLogs,
-    settings: rawState.settings && typeof rawState.settings === 'object' 
-      ? { ...defaults.settings, ...(rawState.settings as object) }
-      : defaults.settings,
+    weightLogs,
+    recoveryCheckins,
+    settings: normalizeSettings(rawState.settings),
     calorieGoal: typeof rawState.calorieGoal === 'number' ? rawState.calorieGoal : defaults.calorieGoal,
     macrosGoal: isMacroGoal(rawState.macrosGoal) ? rawState.macrosGoal : defaults.macrosGoal,
     profile: {
@@ -420,209 +640,268 @@ export const useStore = create<AppState>()(
         set((state) => ({
           profile: { ...state.profile, ...profile },
         })),
+
       updateSettings: (settings) =>
         set((state) => ({
-          settings: { ...state.settings, ...settings },
+          settings: {
+            ...state.settings,
+            ...settings,
+            connectedSignals: {
+              ...state.settings.connectedSignals,
+              ...settings.connectedSignals,
+            },
+            trainingSchedule: settings.trainingSchedule
+              ? {
+                  ...state.settings.trainingSchedule,
+                  ...settings.trainingSchedule,
+                  days: settings.trainingSchedule.days ?? state.settings.trainingSchedule.days,
+                }
+              : state.settings.trainingSchedule,
+            reminders: {
+              ...state.settings.reminders,
+              ...settings.reminders,
+            },
+          },
         })),
-      logBodyWeight: (weight) => set((state) => {
-        const todayKey = toDayKey(new Date());
-        const existing = state.weightLogs.find(l => l.dayKey === todayKey);
-        
-        const newLogs = [...state.weightLogs];
-        if (existing) {
-          existing.weight = weight;
-        } else {
-          newLogs.push({
-            id: crypto.randomUUID(),
-            dayKey: todayKey,
-            loggedAt: new Date().toISOString(),
-            weight,
-          });
-        }
-        
-        // Also update profile
-        return {
-          weightLogs: newLogs,
-          profile: { ...state.profile, weight },
-        };
-      }),
+
+      logBodyWeight: (weight) =>
+        set((state) => {
+          const todayKey = toDayKey(new Date());
+          const existing = state.weightLogs.find((log) => log.dayKey === todayKey);
+          const nextEntry: BodyWeightLog = existing
+            ? { ...existing, weight, loggedAt: new Date().toISOString() }
+            : {
+                id: crypto.randomUUID(),
+                dayKey: todayKey,
+                loggedAt: new Date().toISOString(),
+                weight,
+              };
+
+          return {
+            weightLogs: [
+              nextEntry,
+              ...state.weightLogs.filter((log) => log.dayKey !== todayKey && log.id !== nextEntry.id),
+            ].sort((left, right) => right.loggedAt.localeCompare(left.loggedAt)),
+            profile: { ...state.profile, weight },
+          };
+        }),
+
       setCalorieGoal: (goal) => set({ calorieGoal: goal }),
       setMacrosGoal: (goal) => set({ macrosGoal: goal }),
 
-      saveFoodEntry: (entry) => set((state) => ({
-        foods: state.foods
-          .filter((food) => food.id !== entry.id)
-          .concat({
-            ...entry,
-            consumedAt: entry.consumedAt ?? dayKeyToIso(entry.dayKey, 12),
-          })
-          .sort((left, right) => right.consumedAt.localeCompare(left.consumedAt)),
-      })),
+      saveFoodEntry: (entry) =>
+        set((state) => ({
+          foods: state.foods
+            .filter((food) => food.id !== entry.id)
+            .concat({
+              ...entry,
+              consumedAt: entry.consumedAt ?? dayKeyToIso(entry.dayKey, 12),
+            })
+            .sort((left, right) => right.consumedAt.localeCompare(left.consumedAt)),
+        })),
+
       deleteFoodEntry: (id) => set((state) => ({ foods: state.foods.filter((food) => food.id !== id) })),
 
-      saveSleepLog: (entry) => set((state) => ({
-        sleepLogs: state.sleepLogs
-          .filter((log) => log.id !== entry.id)
-          .concat({
-            ...entry,
-            loggedAt: entry.loggedAt ?? dayKeyToIso(entry.dayKey, 8),
-          })
-          .sort((left, right) => right.dayKey.localeCompare(left.dayKey)),
-      })),
+      saveSleepLog: (entry) =>
+        set((state) => ({
+          sleepLogs: state.sleepLogs
+            .filter((log) => log.id !== entry.id)
+            .concat({
+              ...entry,
+              loggedAt: entry.loggedAt ?? dayKeyToIso(entry.dayKey, 8),
+            })
+            .sort((left, right) => right.dayKey.localeCompare(left.dayKey)),
+        })),
+
       deleteSleepLog: (id) => set((state) => ({ sleepLogs: state.sleepLogs.filter((log) => log.id !== id) })),
 
-      startDraftSession: (seed) => set((state) => ({ 
-        draftSession: createDraftSession({
-          ...seed,
-          restDurationSeconds: seed?.restDurationSeconds ?? state.settings.defaultRestDuration ?? 60
-        }) 
-      })),
+      saveRecoveryCheckIn: (entry) =>
+        set((state) => ({
+          recoveryCheckins: state.recoveryCheckins
+            .filter((checkIn) => checkIn.id !== entry.id && checkIn.dayKey !== entry.dayKey)
+            .concat({
+              ...entry,
+              loggedAt: entry.loggedAt ?? new Date().toISOString(),
+              soreness: clampCheckInScore(entry.soreness),
+              energy: clampCheckInScore(entry.energy),
+              stress: clampCheckInScore(entry.stress),
+              notes: entry.notes ?? '',
+            })
+            .sort((left, right) => right.loggedAt.localeCompare(left.loggedAt)),
+        })),
+
+      deleteRecoveryCheckIn: (id) =>
+        set((state) => ({ recoveryCheckins: state.recoveryCheckins.filter((checkIn) => checkIn.id !== id) })),
+
+      startDraftSession: (seed) =>
+        set((state) => ({
+          draftSession: createDraftSession({
+            ...seed,
+            restDurationSeconds: seed?.restDurationSeconds ?? state.settings.defaultRestDuration ?? 60,
+          }),
+        })),
+
       discardDraftSession: () => set({ draftSession: null }),
-      setDraftName: (name) => set((state) => ({
-        draftSession: state.draftSession ? { ...state.draftSession, name } : state.draftSession,
-      })),
-      setDraftRestDuration: (seconds) => set((state) => ({
-        settings: { ...state.settings, defaultRestDuration: Math.max(15, seconds) },
-        draftSession: state.draftSession
-          ? { ...state.draftSession, restDurationSeconds: Math.max(15, seconds) }
-          : state.draftSession,
-      })),
-      clearDraftRestTimer: () => set((state) => ({
-        draftSession: state.draftSession ? { ...state.draftSession, restTimerEndsAt: null } : state.draftSession,
-      })),
-      addExerciseToDraft: (exercise) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: [...state.draftSession.logs, buildWorkoutLog(exercise)],
-            }
-          : createDraftSession({ 
-              logs: [buildWorkoutLog(exercise)],
-              restDurationSeconds: state.settings.defaultRestDuration ?? 60
-            }),
-      })),
-      duplicateDraftLog: (logId) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.flatMap((log) => (
-                log.id === logId ? [log, duplicateWorkoutLog(log)] : [log]
-              )),
-            }
-          : state.draftSession,
-      })),
-      removeDraftLog: (logId) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.filter((log) => log.id !== logId),
-            }
-          : state.draftSession,
-      })),
-      toggleDraftLogBodyweight: (logId, isBodyweight) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.map((log) => (
-                log.id === logId ? { ...log, isBodyweight } : log
-              )),
-            }
-          : state.draftSession,
-      })),
-      addSetToDraftLog: (logId) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.map((log) => {
-                if (log.id !== logId) {
-                  return log;
-                }
 
-                const lastSet = log.sets[log.sets.length - 1];
+      setDraftName: (name) =>
+        set((state) => ({
+          draftSession: state.draftSession ? { ...state.draftSession, name } : state.draftSession,
+        })),
 
-                return {
-                  ...log,
-                  sets: [
-                    ...log.sets,
-                    createWorkoutSet({
-                      reps: lastSet?.reps ?? (log.isBodyweight ? 10 : 8),
-                      weight: log.isBodyweight ? 0 : lastSet?.weight ?? 0,
-                    }),
-                  ],
-                };
+      setDraftRestDuration: (seconds) =>
+        set((state) => ({
+          settings: { ...state.settings, defaultRestDuration: Math.max(15, seconds) },
+          draftSession: state.draftSession
+            ? { ...state.draftSession, restDurationSeconds: Math.max(15, seconds) }
+            : state.draftSession,
+        })),
+
+      clearDraftRestTimer: () =>
+        set((state) => ({
+          draftSession: state.draftSession ? { ...state.draftSession, restTimerEndsAt: null } : state.draftSession,
+        })),
+
+      addExerciseToDraft: (exercise) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: [...state.draftSession.logs, buildWorkoutLog(exercise)],
+              }
+            : createDraftSession({
+                logs: [buildWorkoutLog(exercise)],
+                restDurationSeconds: state.settings.defaultRestDuration ?? 60,
               }),
-            }
-          : state.draftSession,
-      })),
-      updateDraftSet: (logId, setIndex, changes) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.map((log) => {
-                if (log.id !== logId) {
-                  return log;
-                }
+        })),
 
-                return {
-                  ...log,
-                  sets: log.sets.map((set, index) => (
-                    index === setIndex ? createWorkoutSet({ ...set, ...changes }) : set
-                  )),
-                };
-              }),
-            }
-          : state.draftSession,
-      })),
-      removeDraftSet: (logId, setIndex) => set((state) => ({
-        draftSession: state.draftSession
-          ? {
-              ...state.draftSession,
-              logs: state.draftSession.logs.map((log) => (
-                log.id === logId
-                  ? { ...log, sets: log.sets.filter((_, index) => index !== setIndex) }
-                  : log
-              )),
-            }
-          : state.draftSession,
-      })),
-      toggleDraftSetCompleted: (logId, setIndex) => set((state) => {
-        if (!state.draftSession) {
-          return { draftSession: state.draftSession };
-        }
+      duplicateDraftLog: (logId) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.flatMap((log) => (log.id === logId ? [log, duplicateWorkoutLog(log)] : [log])),
+              }
+            : state.draftSession,
+        })),
 
-        let restTimerEndsAt = state.draftSession.restTimerEndsAt;
+      removeDraftLog: (logId) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.filter((log) => log.id !== logId),
+              }
+            : state.draftSession,
+        })),
 
-        const logs = state.draftSession.logs.map((log) => {
-          if (log.id !== logId) {
-            return log;
+      toggleDraftLogBodyweight: (logId, isBodyweight) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.map((log) => (log.id === logId ? { ...log, isBodyweight } : log)),
+              }
+            : state.draftSession,
+        })),
+
+      addSetToDraftLog: (logId) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.map((log) => {
+                  if (log.id !== logId) {
+                    return log;
+                  }
+
+                  const lastSet = log.sets[log.sets.length - 1];
+
+                  return {
+                    ...log,
+                    sets: [
+                      ...log.sets,
+                      createWorkoutSet({
+                        reps: lastSet?.reps ?? (log.isBodyweight ? 10 : 8),
+                        weight: log.isBodyweight ? 0 : lastSet?.weight ?? 0,
+                      }),
+                    ],
+                  };
+                }),
+              }
+            : state.draftSession,
+        })),
+
+      updateDraftSet: (logId, setIndex, changes) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.map((log) => {
+                  if (log.id !== logId) {
+                    return log;
+                  }
+
+                  return {
+                    ...log,
+                    sets: log.sets.map((set, index) => (index === setIndex ? createWorkoutSet({ ...set, ...changes }) : set)),
+                  };
+                }),
+              }
+            : state.draftSession,
+        })),
+
+      removeDraftSet: (logId, setIndex) =>
+        set((state) => ({
+          draftSession: state.draftSession
+            ? {
+                ...state.draftSession,
+                logs: state.draftSession.logs.map((log) => (
+                  log.id === logId ? { ...log, sets: log.sets.filter((_, index) => index !== setIndex) } : log
+                )),
+              }
+            : state.draftSession,
+        })),
+
+      toggleDraftSetCompleted: (logId, setIndex) =>
+        set((state) => {
+          if (!state.draftSession) {
+            return { draftSession: state.draftSession };
           }
 
+          let restTimerEndsAt = state.draftSession.restTimerEndsAt;
+
+          const logs = state.draftSession.logs.map((log) => {
+            if (log.id !== logId) {
+              return log;
+            }
+
+            return {
+              ...log,
+              sets: log.sets.map((set, index) => {
+                if (index !== setIndex) {
+                  return set;
+                }
+
+                const completed = !set.completed;
+
+                if (completed) {
+                  restTimerEndsAt = new Date(Date.now() + (state.draftSession?.restDurationSeconds ?? 60) * 1000).toISOString();
+                }
+
+                return { ...set, completed };
+              }),
+            };
+          });
+
           return {
-            ...log,
-            sets: log.sets.map((set, index) => {
-              if (index !== setIndex) {
-                return set;
-              }
-
-              const completed = !set.completed;
-
-              if (completed) {
-                restTimerEndsAt = new Date(Date.now() + (state.draftSession?.restDurationSeconds ?? 60) * 1000).toISOString();
-              }
-
-              return { ...set, completed };
-            }),
+            draftSession: {
+              ...state.draftSession,
+              logs,
+              restTimerEndsAt,
+            },
           };
-        });
+        }),
 
-        return {
-          draftSession: {
-            ...state.draftSession,
-            logs,
-            restTimerEndsAt,
-          },
-        };
-      }),
       finalizeDraftSession: (effort) => {
         let finalSession: WorkoutSession | null = null;
 
@@ -644,27 +923,37 @@ export const useStore = create<AppState>()(
 
         return finalSession;
       },
+
       deleteSession: (id) => set((state) => ({ sessions: state.sessions.filter((session) => session.id !== id) })),
-      saveTemplate: (name) => set((state) => {
-        if (!state.draftSession) return state;
-        // Strip completed state and ids from logs for the template
-        const templateLogs = state.draftSession.logs.map(log => ({
-          ...log,
-          id: crypto.randomUUID(),
-          sets: log.sets.map(set => ({ ...set, completed: false }))
-        }));
-        const newTemplate: WorkoutTemplate = {
-          id: crypto.randomUUID(),
-          name,
-          createdAt: new Date().toISOString(),
-          logs: templateLogs,
-        };
-        return { templates: [newTemplate, ...state.templates] };
-      }),
+
+      saveTemplate: (name, logs) =>
+        set((state) => {
+          const sourceLogs = logs.length > 0 ? logs : state.draftSession?.logs ?? [];
+          if (sourceLogs.length === 0) {
+            return state;
+          }
+
+          const templateLogs = sourceLogs.map((log) => ({
+            ...log,
+            id: crypto.randomUUID(),
+            sets: log.sets.map((set) => ({ ...set, completed: false })),
+          }));
+
+          const newTemplate: WorkoutTemplate = {
+            id: crypto.randomUUID(),
+            name,
+            createdAt: new Date().toISOString(),
+            logs: templateLogs,
+          };
+
+          return { templates: [newTemplate, ...state.templates] };
+        }),
+
       deleteTemplate: (id) =>
         set((state) => ({
-          templates: state.templates.filter((t) => t.id !== id),
+          templates: state.templates.filter((template) => template.id !== id),
         })),
+
       hydrateAppStoreData: (data) => set(data),
     }),
     {
@@ -674,11 +963,12 @@ export const useStore = create<AppState>()(
       partialize: (state) => ({
         customExercises: state.customExercises,
         sessions: state.sessions,
-        templates: state.templates || [],
+        templates: state.templates,
         foods: state.foods,
         sleepLogs: state.sleepLogs,
-        weightLogs: state.weightLogs || [],
-        settings: state.settings || { unitSystem: 'metric' },
+        weightLogs: state.weightLogs,
+        recoveryCheckins: state.recoveryCheckins,
+        settings: state.settings,
         calorieGoal: state.calorieGoal,
         macrosGoal: state.macrosGoal,
         profile: state.profile,

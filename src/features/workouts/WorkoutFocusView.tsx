@@ -1,80 +1,153 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCircle, ArrowRight, Activity, ChevronLeft, ChevronRight, Timer as TimerIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Activity, ArrowRight, CheckCircle, Timer as TimerIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+
 import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { Button } from '@/components/ui/button';
+import { formatMuscleGroup } from '@/lib/display';
+import { cn } from '@/lib/utils';
+import { buildGuidedWorkoutSteps } from '@/lib/guidedWorkout';
 import type { DraftSession } from '@/store/types';
 
 interface WorkoutFocusViewProps {
   draftSession: DraftSession;
   elapsedSeconds: number;
-  restSeconds: number;
-  onSkipRest: () => void;
+  guidedStepIndex: number;
+  onAdvanceGuidedStep: () => void;
+  onClearStoredRest: () => void;
   onToggleSetCompleted: (logId: string, setIndex: number) => void;
-  onUpdateSet: (logId: string, setIndex: number, field: 'weight' | 'reps', value: number) => void;
   onFinish: () => void;
   onGoToEdit: () => void;
+}
+
+function formatTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 export function WorkoutFocusView({
   draftSession,
   elapsedSeconds,
-  restSeconds,
-  onSkipRest,
+  guidedStepIndex,
+  onAdvanceGuidedStep,
+  onClearStoredRest,
   onToggleSetCompleted,
-  onUpdateSet,
   onFinish,
-  onGoToEdit
+  onGoToEdit,
 }: WorkoutFocusViewProps) {
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const guidedSteps = useMemo(() => buildGuidedWorkoutSteps(draftSession), [draftSession]);
+  const currentStep = guidedStepIndex < guidedSteps.length ? guidedSteps[guidedStepIndex] : null;
+  const isGuidedFlowComplete = guidedSteps.length > 0 && guidedStepIndex >= guidedSteps.length;
+  const currentStepNumber = currentStep ? guidedStepIndex + 1 : guidedSteps.length;
+  const nextStep = currentStep ? guidedSteps[guidedStepIndex + 1] ?? null : null;
 
-  // Find the first uncompleted set across all logs
-  const allSets = draftSession.logs.flatMap(log => 
-    log.sets.map((set, index) => ({ log, set, index }))
+  const [remainingSeconds, setRemainingSeconds] = useState(
+    currentStep && currentStep.kind !== 'main' ? currentStep.durationSeconds : 0,
   );
-  
-  const activeSetIdx = allSets.findIndex(item => !item.set.completed);
-  const isAllCompleted = activeSetIdx === -1;
-  const activeItem = !isAllCompleted ? allSets[activeSetIdx] : null;
-  const { log: activeLog, set: activeSet, index: activeSetIndex } = activeItem || {};
 
-  // For the progress bar
-  const totalSets = allSets.length;
-  const completedSets = allSets.filter(s => s.set.completed).length;
-  const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+  useEffect(() => {
+    if (!currentStep || currentStep.kind === 'main') {
+      setRemainingSeconds(0);
+      return;
+    }
 
-  if (isAllCompleted) {
+    setRemainingSeconds(currentStep.durationSeconds);
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (!currentStep || currentStep.kind === 'main') {
+      return;
+    }
+
+    const startedAt = Date.now();
+    const durationMs = currentStep.durationSeconds * 1000;
+    let hasAdvanced = false;
+
+    const tick = () => {
+      if (hasAdvanced) {
+        return;
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      const nextRemaining = Math.max(0, Math.ceil((durationMs - elapsedMs) / 1000));
+
+      setRemainingSeconds(nextRemaining);
+
+      if (elapsedMs >= durationMs) {
+        hasAdvanced = true;
+        onAdvanceGuidedStep();
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 250);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [currentStep, onAdvanceGuidedStep]);
+
+  useEffect(() => {
+    if (!currentStep || currentStep.kind !== 'main') {
+      return;
+    }
+
+    const log = draftSession.logs.find((entry) => entry.id === currentStep.logId);
+    const set = log?.sets[currentStep.setIndex];
+
+    if (set?.completed) {
+      onAdvanceGuidedStep();
+    }
+  }, [currentStep, draftSession.logs, onAdvanceGuidedStep]);
+
+  const progress = guidedSteps.length === 0
+    ? 0
+    : ((isGuidedFlowComplete ? guidedSteps.length : guidedStepIndex) / guidedSteps.length) * 100;
+
+  if (isGuidedFlowComplete) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center p-8 text-center h-full"
+        className="flex h-full flex-col items-center justify-center p-8 text-center"
       >
         <div className="relative mb-8 text-[#6EE7B7]">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring", damping: 12 }}
-            className="size-24 rounded-full bg-[#6EE7B7]/20 flex items-center justify-center"
+            transition={{ type: 'spring', damping: 12 }}
+            className="flex size-24 items-center justify-center rounded-full bg-[#6EE7B7]/20"
           >
             <CheckCircle className="size-12 text-[#6EE7B7]" />
           </motion.div>
           <motion.div
             animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="absolute inset-0 rounded-full bg-[#6EE7B7]/10 -z-10"
+            className="absolute inset-0 -z-10 rounded-full bg-[#6EE7B7]/10"
           />
         </div>
-        
-        <h2 className="text-3xl font-black text-white mb-2 tracking-tight">¡Sesión Terminada!</h2>
-        <p className="text-zinc-400 mb-10 max-w-xs">Has completado todo el volumen planificado. ¡Buen trabajo!</p>
-        
-        <div className="flex flex-col gap-4 w-full max-w-xs">
+
+        <h2 className="mb-2 text-3xl font-black tracking-tight text-white">Enfriamiento completo</h2>
+        <p className="mb-10 max-w-xs text-zinc-400">
+          Terminaste calentamiento, bloque principal y cierre. Ahora guarda el esfuerzo para registrar la sesión.
+        </p>
+
+        <div className="mb-8 grid w-full max-w-sm grid-cols-2 gap-3">
+          <div className="rounded-[1.8rem] border border-white/8 bg-white/5 px-4 py-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Tiempo total</p>
+            <p className="mt-2 text-2xl font-black text-white">{formatTime(elapsedSeconds)}</p>
+          </div>
+          <div className="rounded-[1.8rem] border border-white/8 bg-white/5 px-4 py-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Bloques</p>
+            <p className="mt-2 text-2xl font-black text-white">{guidedSteps.length}</p>
+          </div>
+        </div>
+
+        <div className="flex w-full max-w-xs flex-col gap-4">
           <Button
-            className="h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[12px] font-black uppercase tracking-[0.2em] text-[#080B11] shadow-[0_20px_50px_rgba(110,231,183,0.3)] hover:scale-105 transition-transform"
+            className="h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[12px] font-black uppercase tracking-[0.2em] text-[#080B11] shadow-[0_20px_50px_rgba(110,231,183,0.3)] transition-transform hover:scale-105"
             onClick={onFinish}
           >
             GUARDAR RESULTADOS
@@ -84,224 +157,275 @@ export function WorkoutFocusView({
             className="h-14 w-full rounded-[2rem] text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 hover:text-white"
             onClick={onGoToEdit}
           >
-            REVISAR EJERCICIOS
+            REVISAR SESIÓN
           </Button>
         </div>
       </motion.div>
     );
   }
 
-  if (restSeconds > 0) {
-    const nextItem = allSets[activeSetIdx]; 
-    
+  if (!currentStep) {
+    return null;
+  }
+
+  const toneClass = currentStep.kind === 'warmup'
+    ? 'text-[#6EE7B7]'
+    : currentStep.kind === 'cooldown'
+      ? 'text-[#7AB9FF]'
+      : currentStep.kind === 'rest'
+        ? 'text-[#F9B06E]'
+        : 'text-white';
+
+  const timerCircleClass = currentStep.kind === 'warmup'
+    ? 'text-[#6EE7B7]'
+    : currentStep.kind === 'cooldown'
+      ? 'text-[#7AB9FF]'
+      : 'text-[#F9B06E]';
+
+  if (currentStep.kind !== 'main') {
+    const stepLabel = currentStep.kind === 'warmup'
+      ? 'CALENTAMIENTO'
+      : currentStep.kind === 'cooldown'
+        ? 'ENFRIAMIENTO'
+        : 'DESCANSO';
+
+    const elapsedRatio = currentStep.durationSeconds === 0
+      ? 1
+      : 1 - (remainingSeconds / currentStep.durationSeconds);
+    const nextLabel = nextStep
+      ? nextStep.kind === 'main'
+        ? nextStep.title
+        : nextStep.kind === 'rest'
+          ? 'Descanso'
+          : nextStep.kind === 'cooldown'
+            ? 'Enfriamiento'
+            : 'Calentamiento'
+      : 'Fin del bloque';
+
     return (
-      <motion.div 
-        key="rest-view"
+      <motion.div
+        key={currentStep.id}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="flex flex-col items-center justify-center p-6 h-full"
+        className="flex h-full flex-col items-center justify-center p-6"
       >
-        <div className="flex flex-col items-center flex-1 justify-center w-full relative">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border border-white/5 animate-ping opacity-20" />
-            
-            <p className="text-[12px] font-black uppercase tracking-[0.4em] text-[#6EE7B7] mb-8">DESCANSANDO</p>
-            
-            <div className="relative mb-12 flex items-center justify-center">
-               <svg className="size-64 -rotate-90">
-                 <circle
-                   cx="128"
-                   cy="128"
-                   r="120"
-                   fill="transparent"
-                   stroke="currentColor"
-                   strokeWidth="4"
-                   className="text-white/5"
-                 />
-                 <motion.circle
-                   cx="128"
-                   cy="128"
-                   r="120"
-                   fill="transparent"
-                   stroke="currentColor"
-                   strokeWidth="4"
-                   strokeDasharray="753.98"
-                   initial={{ strokeDashoffset: 0 }}
-                   animate={{ strokeDashoffset: 753.98 * (1 - restSeconds / draftSession.restDurationSeconds) }}
-                   transition={{ duration: 1, ease: "linear" }}
-                   className="text-[#6EE7B7]"
-                   strokeLinecap="round"
-                 />
-               </svg>
-               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-8xl font-black text-white tabular-nums tracking-tighter">
-                    {restSeconds}<span className="text-2xl text-zinc-500 ml-1">s</span>
-                  </span>
-               </div>
+        <div className="relative flex flex-1 flex-col items-center justify-center">
+          <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-white/5 opacity-20" />
+
+          <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
+            <span className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em]', toneClass, 'border-current/20 bg-white/5')}>
+              {stepLabel}
+            </span>
+            <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
+              Paso {currentStepNumber} de {guidedSteps.length}
+            </span>
+            <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
+              Sesión {formatTime(elapsedSeconds)}
+            </span>
+          </div>
+
+          <div className="relative mb-10 flex items-center justify-center">
+            <svg className="size-64 -rotate-90">
+              <circle
+                cx="128"
+                cy="128"
+                r="120"
+                fill="transparent"
+                stroke="currentColor"
+                strokeWidth="4"
+                className="text-white/5"
+              />
+              <motion.circle
+                cx="128"
+                cy="128"
+                r="120"
+                fill="transparent"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeDasharray="753.98"
+                animate={{ strokeDashoffset: 753.98 * elapsedRatio }}
+                transition={{ duration: 0.25, ease: 'linear' }}
+                className={timerCircleClass}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-8xl font-black tracking-tighter text-white tabular-nums">
+                {remainingSeconds}
+                <span className="ml-1 text-2xl text-zinc-500">s</span>
+              </span>
             </div>
-            
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="w-full max-w-xs rounded-[2.5rem] bg-white/5 border border-white/10 p-6 text-center backdrop-blur-xl"
-            >
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">PRÓXIMA SERIE</p>
-              <p className="text-xl font-bold text-white mb-2 line-clamp-1">{nextItem.log.exerciseName}</p>
-              <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/5">Serie {nextItem.index + 1}/{nextItem.log.sets.length}</span>
-                <span className="text-[#6EE7B7] font-bold">{nextItem.set.weight}kg × {nextItem.set.reps}</span>
-              </div>
-            </motion.div>
-        </div>
-        
-        <div className="w-full max-w-xs pb-12">
-          <Button
-              className="h-16 w-full rounded-[2rem] bg-white text-[12px] font-black uppercase tracking-[0.2em] text-[#080B11] hover:bg-white/90 shadow-xl"
-              onClick={onSkipRest}
+          </div>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="w-full max-w-sm rounded-[2.6rem] border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl"
           >
-            SALTAR DESCANSO <ArrowRight className="ml-2 size-5" />
-          </Button>
+            <p className={cn('mb-3 text-[10px] font-black uppercase tracking-[0.25em]', toneClass)}>
+              Paso automático
+            </p>
+            <h2 className="text-2xl font-black tracking-tight text-white">{currentStep.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-300">{currentStep.subtitle}</p>
+            <p className="mt-4 text-xs leading-relaxed text-zinc-500">{currentStep.detail}</p>
+          </motion.div>
+
+          <div className="mt-4 w-full max-w-sm rounded-[1.9rem] border border-white/8 bg-[#0b1320]/88 px-4 py-4 text-left">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Siguiente</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-white">{nextLabel}</p>
+              <ArrowRight className="size-4 text-zinc-500" />
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full max-w-xs pb-12 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-600">
+            La pantalla avanzará sola
+          </p>
         </div>
       </motion.div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#080B11] overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white/5 border-b border-white/5">
+    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+      <div className="flex items-center justify-between border-b border-white/5 bg-white/5 px-6 py-4">
         <div className="flex items-center gap-2">
-          <div className="size-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">EN SESIÓN</span>
+          <div className="size-2 animate-pulse rounded-full bg-[#6EE7B7]" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6EE7B7]">GUIADO</span>
         </div>
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 text-white">
             <TimerIcon className="size-3.5 text-zinc-500" />
-            <span className="text-sm font-black tabular-nums tracking-tight">
+            <span className="text-sm font-black tracking-tight tabular-nums">
               {formatTime(elapsedSeconds)}
             </span>
           </div>
-          <motion.button 
+          <motion.button
             whileTap={{ scale: 0.9 }}
-            className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md"
+            className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white backdrop-blur-md"
             onClick={onGoToEdit}
+            aria-label="Editar sesión"
           >
             <Activity className="size-5" />
           </motion.button>
         </div>
       </div>
 
-      <div className="h-1.5 w-full bg-white/5 flex items-center overflow-hidden">
-        <motion.div 
+      <div className="flex h-1.5 w-full items-center overflow-hidden bg-white/5">
+        <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ type: "spring", stiffness: 50 }}
+          transition={{ type: 'spring', stiffness: 50 }}
           className="h-full bg-[#6EE7B7] shadow-[0_0_15px_rgba(110,231,183,0.5)]"
         />
       </div>
 
-      <div className="flex-1 px-6 pt-12 pb-32 flex flex-col items-center justify-center max-w-lg mx-auto w-full relative">
+      <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-6 pb-32 pt-12">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${activeLog?.id}-${activeSetIndex}`}
-            initial={{ x: 50, opacity: 0 }}
+            key={currentStep.id}
+            initial={{ x: 40, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -50, opacity: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 100 }}
-            className="w-full flex flex-col items-center"
+            exit={{ x: -40, opacity: 0 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+            className="flex w-full flex-col items-center"
           >
-            <div className="relative mb-10 group">
-              <div className="absolute inset-0 bg-[#6EE7B7]/20 blur-[60px] rounded-full scale-150 opacity-10 group-hover:opacity-30 transition-opacity" />
-              <div className="relative flex items-center justify-center size-36 rounded-[3rem] bg-white/5 border border-white/10 text-white shadow-inner">
-                <ExerciseIcon name={activeLog!.iconName} className="size-20" />
+            <div className="group relative mb-10">
+              <div className="absolute inset-0 scale-150 rounded-full bg-[#6EE7B7]/20 opacity-10 blur-[60px] transition-opacity group-hover:opacity-30" />
+              <div className="relative flex size-36 items-center justify-center rounded-[3rem] border border-white/10 bg-white/5 text-white shadow-inner">
+                <ExerciseIcon name={draftSession.logs.find((entry) => entry.id === currentStep.logId)?.iconName ?? 'Activity'} className="size-20" />
               </div>
             </div>
 
-            <div className="text-center mb-10 w-full px-4">
-              <h2 className="text-4xl font-black text-white tracking-tight leading-[1.1] mb-5 text-balance">
-                {activeLog!.exerciseName}
+            <div className="mb-8 w-full px-4 text-center">
+              <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                <span className="rounded-full border border-[#6EE7B7]/18 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7]">
+                  Bloque principal
+                </span>
+                <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
+                  Paso {currentStepNumber} de {guidedSteps.length}
+                </span>
+                <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
+                  {formatMuscleGroup(currentStep.muscleGroup)}
+                </span>
+              </div>
+              <h2 className="mb-4 text-4xl font-black leading-[1.1] tracking-tight text-white text-balance">
+                {currentStep.title}
               </h2>
-              <div className="flex flex-col items-center gap-4">
-                 <span className="px-4 py-1.5 rounded-full bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
-                   {activeLog!.muscleGroup}
-                 </span>
-                 <div className="flex gap-1.5 h-1.5 items-center">
-                   {activeLog!.sets.map((s, i) => (
-                     <motion.div 
-                       key={i} 
-                       initial={false}
-                       animate={{ 
-                         backgroundColor: s.completed ? "#6EE7B7" : i === activeSetIndex ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)",
-                         scale: i === activeSetIndex ? 1.2 : 1,
-                         width: i === activeSetIndex ? 24 : 16
-                       }}
-                       className="h-1.5 rounded-full transition-all"
-                     />
-                   ))}
-                 </div>
-              </div>
+              <p className="mx-auto max-w-sm text-sm leading-relaxed text-zinc-400">
+                {currentStep.subtitle}
+              </p>
             </div>
 
-            <div className="w-full space-y-6">
-              <div className="grid grid-cols-2 gap-5">
-                {activeLog!.isBodyweight ? (
-                  <div className="rounded-[2.5rem] border border-[#6EE7B7]/20 bg-[#6EE7B7]/5 p-6 backdrop-blur-md flex flex-col items-center justify-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6EE7B7] mb-2">MODO</p>
-                    <span className="text-xl font-black text-white text-center leading-tight">PESO CORPORAL</span>
+            <div className="w-full space-y-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Objetivo</p>
+                  <div className="flex items-end gap-2">
+                    <span className="text-6xl font-black tracking-tighter text-white">{currentStep.reps}</span>
+                    <span className="pb-2 text-lg font-black text-zinc-500">reps</span>
                   </div>
-                ) : (
-                  <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md flex flex-col items-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-5">PESO (KG)</p>
-                    <div className="flex items-center justify-between w-full">
-                      <motion.button 
-                        whileTap={{ scale: 0.9 }}
-                        className="size-12 rounded-[1.25rem] bg-white/5 flex items-center justify-center text-white"
-                        onClick={() => onUpdateSet(activeLog!.id, activeSetIndex!, 'weight', Math.max(0, activeSet!.weight - 1))}
-                      >
-                        <ChevronLeft className="size-7" />
-                      </motion.button>
-                      <span className="text-4xl font-black text-white tabular-nums px-2">{activeSet!.weight}</span>
-                      <motion.button 
-                        whileTap={{ scale: 0.9 }}
-                        className="size-12 rounded-[1.25rem] bg-white/5 flex items-center justify-center text-white"
-                        onClick={() => onUpdateSet(activeLog!.id, activeSetIndex!, 'weight', activeSet!.weight + 1)}
-                      >
-                        <ChevronRight className="size-7" />
-                      </motion.button>
-                    </div>
-                  </div>
-                )}
+                  <p className="mt-4 text-xs leading-relaxed text-zinc-500">{currentStep.detail}</p>
+                </div>
 
-                <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md flex flex-col items-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-5">REPETICIONES</p>
-                  <div className="flex items-center justify-between w-full">
-                    <motion.button 
-                      whileTap={{ scale: 0.9 }}
-                      className="size-12 rounded-[1.25rem] bg-white/5 flex items-center justify-center text-white"
-                      onClick={() => onUpdateSet(activeLog!.id, activeSetIndex!, 'reps', Math.max(0, activeSet!.reps - 1))}
-                    >
-                      <ChevronLeft className="size-7" />
-                    </motion.button>
-                    <span className="text-4xl font-black text-white tabular-nums px-2">{activeSet!.reps}</span>
-                    <motion.button 
-                      whileTap={{ scale: 0.9 }}
-                      className="size-12 rounded-[1.25rem] bg-white/5 flex items-center justify-center text-white"
-                      onClick={() => onUpdateSet(activeLog!.id, activeSetIndex!, 'reps', activeSet!.reps + 1)}
-                    >
-                      <ChevronRight className="size-7" />
-                    </motion.button>
+                <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Contexto</p>
+                  <div className="space-y-3">
+                    <div className="rounded-[1.5rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/8 px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6EE7B7]">Modo</p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {currentStep.isBodyweight ? 'Peso corporal · sin equipo' : `${currentStep.weight} kg`}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.5rem] border border-white/8 bg-[#0f1724] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Serie</p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {currentStep.setIndex + 1} de {currentStep.totalSets}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.5rem] border border-white/8 bg-[#0f1724] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Sesión</p>
+                      <p className="mt-1 text-sm font-black text-white">{formatTime(elapsedSeconds)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {nextStep ? (
+                <div className="rounded-[2rem] border border-white/10 bg-[#0f1724] px-5 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Después de este bloque</p>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-black text-white">
+                      {nextStep.kind === 'main'
+                        ? nextStep.title
+                        : nextStep.kind === 'rest'
+                          ? 'Descanso automático'
+                          : nextStep.kind === 'cooldown'
+                            ? 'Enfriamiento automático'
+                            : 'Siguiente calentamiento'}
+                    </p>
+                    <ArrowRight className="size-4 text-zinc-500" />
+                  </div>
+                </div>
+              ) : null}
+
               <motion.button
-                whileTap={{ scale: 0.96 }}
-                className="h-20 w-full rounded-[3.5rem] bg-[#6EE7B7] text-base font-black uppercase tracking-[0.3em] text-[#080B11] shadow-[0_20px_60px_rgba(110,231,183,0.3)] transition-all flex items-center justify-center relative overflow-hidden group shrink-0"
-                onClick={() => onToggleSetCompleted(activeLog!.id, activeSetIndex!)}
+                whileTap={{ scale: 0.97 }}
+                className="relative flex h-20 w-full shrink-0 items-center justify-center overflow-hidden rounded-[3.5rem] bg-[#6EE7B7] text-base font-black uppercase tracking-[0.26em] text-[#080B11] shadow-[0_20px_60px_rgba(110,231,183,0.3)] transition-all group"
+                onClick={() => {
+                  onToggleSetCompleted(currentStep.logId, currentStep.setIndex);
+                  onClearStoredRest();
+                  onAdvanceGuidedStep();
+                }}
               >
-                <div className="absolute inset-0 bg-white/30 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                <div className="absolute inset-0 translate-y-full bg-white/30 transition-transform duration-500 group-hover:translate-y-0" />
                 <span className="relative z-10 flex items-center gap-3">
-                  COMPLETAR SERIE <CheckCircle className="size-6" />
+                  Terminé mis repeticiones
+                  <CheckCircle className="size-6" />
                 </span>
               </motion.button>
             </div>

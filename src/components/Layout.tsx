@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Clock3, LayoutGrid, TrendingUp, Trophy } from 'lucide-react';
+import { Activity, Clock3, Dumbbell, LayoutGrid, TrendingUp } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-export type AppTab = 'today' | 'library' | 'timeline' | 'stats';
+export type AppTab = 'home' | 'map' | 'train' | 'log' | 'progress';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,10 +14,11 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'today', label: 'Inicio', icon: LayoutGrid },
-  { id: 'library', label: 'Entrenar', icon: Trophy },
-  { id: 'timeline', label: 'Diario', icon: Clock3 },
-  { id: 'stats', label: 'Stats', icon: TrendingUp },
+  { id: 'home', label: 'Inicio', icon: LayoutGrid },
+  { id: 'map', label: 'Mapa', icon: Activity },
+  { id: 'train', label: 'Entrenar', icon: Dumbbell },
+  { id: 'log', label: 'Registro', icon: Clock3 },
+  { id: 'progress', label: 'Progreso', icon: TrendingUp },
 ];
 
 export function Layout({
@@ -28,17 +29,17 @@ export function Layout({
   onResumeDraft,
 }: LayoutProps) {
   return (
-    <div className="flex h-screen flex-col bg-[#080B11] font-sans text-white">
+    <div className="flex h-screen flex-col bg-[#07101A] font-sans text-white">
       <main className="relative mx-auto flex w-full max-w-md flex-1 overflow-hidden">
         {children}
       </main>
 
       {draftName && onResumeDraft ? (
-        <div className="fixed bottom-24 left-0 right-0 z-40 mx-auto flex w-full max-w-md justify-center px-6">
+        <div className="fixed bottom-28 left-0 right-0 z-40 mx-auto flex w-full max-w-md justify-center px-4">
           <button
             type="button"
             onClick={onResumeDraft}
-            className="flex w-full items-center justify-between rounded-[2rem] border border-[#6EE7B7]/20 bg-[#121721]/95 px-5 py-4 shadow-2xl shadow-black/40 backdrop-blur-xl"
+            className="flex w-full items-center justify-between rounded-[2rem] border border-[#6EE7B7]/18 bg-[#0b1320]/92 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl"
           >
             <div className="text-left">
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Sesión en borrador</p>
@@ -52,7 +53,7 @@ export function Layout({
         </div>
       ) : null}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 mx-auto flex h-24 w-full max-w-md items-center justify-between border-t border-white/5 bg-[#080B11]/80 px-5 py-2 backdrop-blur-3xl">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 mx-auto flex h-24 w-full max-w-md items-center justify-between border-t border-white/6 bg-[#07101A]/88 px-3 py-2 backdrop-blur-3xl">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -63,12 +64,12 @@ export function Layout({
               type="button"
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                'flex flex-1 flex-col items-center gap-1.5 rounded-[1.5rem] px-2 py-3 transition-all duration-300',
-                isActive ? 'bg-white/5' : 'hover:bg-white/5',
+                'flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-[1.6rem] px-1 py-3 transition-all duration-300',
+                isActive ? 'bg-white/6' : 'hover:bg-white/5',
               )}
             >
               <Icon className={cn('size-5 transition-all', isActive ? 'scale-110 text-[#6EE7B7]' : 'text-zinc-600')} />
-              <span className={cn('text-[9px] font-bold uppercase tracking-[0.25em]', isActive ? 'text-white' : 'text-zinc-600')}>
+              <span className={cn('truncate text-[9px] font-bold uppercase tracking-[0.22em]', isActive ? 'text-white' : 'text-zinc-600')}>
                 {item.label}
               </span>
             </button>

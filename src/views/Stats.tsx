@@ -1,25 +1,56 @@
 import { useMemo } from 'react';
-import { Flame, Moon, TrendingUp, Activity } from 'lucide-react';
+import { Moon, Sparkles, TrendingUp, Trophy } from 'lucide-react';
 
-import { formatDayHeading, formatMuscleGroup } from '@/lib/display';
-import { cn } from '@/lib/utils';
+import { HeatmapCalendar } from '@/components/HeatmapCalendar';
+import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { useStoreData } from '@/hooks/useStoreData';
+import { formatMuscleGroup } from '@/lib/display';
+import { formatWeight } from '@/lib/units';
+import { cn } from '@/lib/utils';
 import {
   selectCoachInsights,
+  selectCurrentWeekLabel,
+  selectMuscleGroupStats,
   selectPersonalRecords,
   selectPreviousWeekVolume,
+  selectProgressMilestones,
   selectSleepChartData,
   selectTrainingStreak,
   selectWeeklyTrainingData,
-  selectMuscleGroupStats,
 } from '@/store/selectors';
-import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
-import { formatWeight } from '@/lib/units';
-import { HeatmapCalendar } from '@/components/HeatmapCalendar';
+
+function MetricTile({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  iconClass,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: typeof TrendingUp;
+  iconClass: string;
+}) {
+  return (
+    <div className="app-metric-tile rounded-[2rem] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{label}</p>
+          <p className="mt-4 text-4xl font-black leading-none text-white">{value}</p>
+        </div>
+        <div className={cn('flex size-11 items-center justify-center rounded-[1.25rem] bg-white/5', iconClass)}>
+          <Icon className="size-5" />
+        </div>
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-zinc-500">{detail}</p>
+    </div>
+  );
+}
 
 export function Stats() {
   const storeData = useStoreData();
-
+  const { exercises } = useExerciseCatalog();
   const streak = useMemo(() => selectTrainingStreak(storeData), [storeData]);
   const weeklyData = useMemo(() => selectWeeklyTrainingData(storeData), [storeData]);
   const previousWeekVolume = useMemo(() => selectPreviousWeekVolume(storeData), [storeData]);
@@ -27,55 +58,108 @@ export function Stats() {
   const insights = useMemo(() => selectCoachInsights(storeData), [storeData]);
   const personalRecords = useMemo(() => selectPersonalRecords(storeData), [storeData]);
   const muscleGroupStats = useMemo(() => selectMuscleGroupStats(storeData), [storeData]);
-  const { exercises } = useExerciseCatalog();
+  const milestones = useMemo(() => selectProgressMilestones(storeData), [storeData]);
+  const currentWeekLabel = useMemo(() => selectCurrentWeekLabel(), []);
+  const personalRecordEntries = useMemo(
+    () => (Object.entries(personalRecords) as Array<[string, number]>)
+      .sort(([, left], [, right]) => right - left)
+      .slice(0, 5),
+    [personalRecords],
+  );
+
   const currentWeekVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
   const maxReps = Math.max(...weeklyData.map((day) => day.totalReps), 1);
   const maxSleepScore = Math.max(...sleepChartData.map((day) => day.score ?? 0), 1);
   const maxMuscleLoad = Math.max(...muscleGroupStats.map((stat) => stat.totalLoad), 1);
+  const completedMilestones = milestones.filter((milestone) => milestone.complete).length;
+  const averageSleepHours = sleepChartData.filter((day) => day.durationHours !== null);
+  const sleepAverage = averageSleepHours.length > 0
+    ? (averageSleepHours.reduce((total, day) => total + (day.durationHours ?? 0), 0) / averageSleepHours.length).toFixed(1)
+    : '--';
+  const featuredInsight = insights[0];
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#080B11]">
+    <div className="app-screen flex h-full flex-col overflow-hidden">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Progreso</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Análisis de Desempeño</h1>
+        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Progreso</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Progreso</h1>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+          Tu consistencia, el sueño y la carga semanal puestos en contexto para decidir mejor la siguiente sesión.
+        </p>
       </header>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-32">
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-32">
+        <section className="app-panel rounded-[2.7rem] p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Resumen semanal</p>
+              <h2 className="mt-2 text-3xl font-black leading-tight tracking-tight text-white">
+                {streak > 0 ? `${streak} día${streak === 1 ? '' : 's'} en ritmo` : 'Empieza a construir tu racha'}
+              </h2>
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-400">
+                {featuredInsight?.body ?? 'Cada registro nuevo mejora cómo entendemos tu tolerancia y recuperación.'}
+              </p>
+            </div>
+            <div className="rounded-[1.7rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/10 px-4 py-3 text-right">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">Semana actual</p>
+              <p className="mt-2 text-3xl font-black text-white">{currentWeekVolume}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">reps</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <MetricTile
+              label="Racha"
+              value={String(streak)}
+              detail="Entrenar seguido importa más que una sola sesión perfecta."
+              icon={TrendingUp}
+              iconClass="text-[#6EE7B7]"
+            />
+            <MetricTile
+              label="Sueño prom."
+              value={sleepAverage === '--' ? '--' : `${sleepAverage}h`}
+              detail="Promedio visible de las últimas noches registradas."
+              icon={Moon}
+              iconClass="text-[#7AB9FF]"
+            />
+            <MetricTile
+              label="Hitos"
+              value={String(completedMilestones)}
+              detail="Hitos completados dentro del sistema de progreso."
+              icon={Sparkles}
+              iconClass="text-[#F9B06E]"
+            />
+            <MetricTile
+              label="Récords"
+              value={String(personalRecordEntries.length)}
+              detail="Ejercicios con mejor marca desbloqueada hasta ahora."
+              icon={Trophy}
+              iconClass="text-[#C4B5FD]"
+            />
+          </div>
+        </section>
+
         <HeatmapCalendar />
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-            <TrendingUp className="size-5 text-[#6EE7B7]" />
-            <p className="mt-4 text-4xl font-black leading-none text-white">{streak}</p>
-            <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-              Racha de días
-            </p>
-          </div>
 
-          <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-            <Flame className="size-5 text-orange-400" />
-            <p className="mt-4 text-4xl font-black leading-none text-white">{currentWeekVolume}</p>
-            <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-              Reps esta semana
-            </p>
-          </div>
-        </div>
-
-        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-          <div className="flex items-center justify-between">
+        <section className="app-panel rounded-[2.4rem] p-5">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Volumen</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Esta semana vs. Anterior</h2>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Semana actual</h2>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                Arranca desde {currentWeekLabel}. La comparación con la semana anterior te ayuda a decidir si subir o sostener.
+              </p>
             </div>
-            <span className="rounded-2xl bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-              Ant. {previousWeekVolume}
-            </span>
+            <div className="app-metric-tile rounded-[1.5rem] px-4 py-3 text-right">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Previo</p>
+              <p className="mt-2 text-2xl font-black text-white">{previousWeekVolume}</p>
+            </div>
           </div>
 
-          <div className="mt-8 flex h-[180px] items-end justify-between gap-3">
+          <div className="mt-6 flex h-[180px] items-end justify-between gap-3">
             {weeklyData.map((day) => (
               <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-36 w-full items-end rounded-full bg-white/5 p-1">
+                <div className="flex h-36 w-full items-end rounded-full bg-[#0b1320] p-1">
                   <div
                     className={cn(
                       'w-full rounded-full transition-all duration-700',
@@ -95,51 +179,21 @@ export function Stats() {
           </div>
         </section>
 
-        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-          <div className="flex items-center gap-3">
-            <Activity className="size-5 text-indigo-400" />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Distribución</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Volumen Histórico</h2>
-            </div>
-          </div>
-          
-          <div className="mt-8 space-y-4">
-            {muscleGroupStats.sort((a, b) => b.totalLoad - a.totalLoad).map((stat) => (
-              <div key={stat.muscleGroup}>
-                <div className="flex justify-between items-end mb-2">
-                  <p className="text-xs font-bold text-white uppercase tracking-wider">{formatMuscleGroup(stat.muscleGroup)}</p>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-[#6EE7B7] inline-block mr-2">{stat.totalReps} <span className="text-[10px] text-zinc-500">reps</span></p>
-                    <p className="text-xs font-black text-indigo-400 inline-block">{formatWeight(stat.totalLoad, storeData.settings.unitSystem)}</p>
-                  </div>
-                </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-400 rounded-full transition-all duration-700" 
-                    style={{ width: `${Math.max(2, (stat.totalLoad / maxMuscleLoad) * 100)}%` }} 
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-          <div className="flex items-center gap-3">
-            <Moon className="size-5 text-[#63B3ED]" />
+        <section className="app-panel rounded-[2.4rem] p-5">
+          <div className="flex items-start gap-3">
+            <Moon className="size-5 text-[#7AB9FF]" />
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Descanso</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Calidad de Sueño</h2>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Calidad de sueño</h2>
             </div>
           </div>
 
-          <div className="mt-8 flex h-[160px] items-end justify-between gap-3">
+          <div className="mt-6 flex h-[160px] items-end justify-between gap-3">
             {sleepChartData.map((day) => (
               <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-32 w-full items-end rounded-full bg-white/5 p-1">
+                <div className="flex h-32 w-full items-end rounded-full bg-[#0b1320] p-1">
                   <div
-                    className="w-full rounded-full bg-[#63B3ED]/80 transition-all duration-700"
+                    className="w-full rounded-full bg-[#7AB9FF]/80 transition-all duration-700"
                     style={{ height: `${day.score === null ? 10 : Math.max(10, (day.score / maxSleepScore) * 100)}%` }}
                   />
                 </div>
@@ -152,114 +206,121 @@ export function Stats() {
           </div>
         </section>
 
-        {storeData.weightLogs.length > 0 && (
-          <section className="space-y-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Cuerpo</p>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Tendencia de Peso</h2>
-            </div>
-            
-            <div className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <p className="text-sm font-bold text-white">Actual</p>
-                  <p className="text-2xl font-black text-[#6EE7B7]">{formatWeight(storeData.profile.weight, storeData.settings.unitSystem)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-white">Registros</p>
-                  <p className="text-xl font-black text-zinc-400">{storeData.weightLogs.length}</p>
-                </div>
-              </div>
-              
-              <div className="flex h-[120px] items-end gap-1">
-                {(() => {
-                  const logs = [...storeData.weightLogs].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)).slice(-10);
-                  const maxWeight = Math.max(...logs.map(l => l.weight), storeData.profile.weight);
-                  const minWeight = Math.min(...logs.map(l => l.weight), storeData.profile.weight) * 0.9;
-                  const range = maxWeight - minWeight;
+        <section className="app-panel rounded-[2.4rem] p-5">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Distribución</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Carga por grupo muscular</h2>
+          </div>
 
-                  return logs.map((log) => {
-                    const heightPct = range === 0 ? 50 : Math.max(10, ((log.weight - minWeight) / range) * 100);
-                    return (
-                      <div key={log.id} className="flex flex-1 flex-col items-center gap-2 group relative">
-                        <div className="absolute -top-8 hidden whitespace-nowrap rounded-lg bg-black px-2 py-1 text-xs font-bold text-white group-hover:block z-10">
-                          {formatWeight(log.weight, storeData.settings.unitSystem)}
-                        </div>
-                        <div className="flex h-24 w-full items-end justify-center rounded-t-sm bg-white/5 transition-all hover:bg-white/10">
-                          <div
-                            className="w-full rounded-t-sm bg-white/80 transition-all duration-500"
-                            style={{ height: `${heightPct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
+          <div className="mt-6 space-y-4">
+            {muscleGroupStats.sort((left, right) => right.totalLoad - left.totalLoad).map((stat) => (
+              <div key={stat.muscleGroup}>
+                <div className="mb-2 flex items-end justify-between gap-4">
+                  <p className="text-sm font-black text-white">{formatMuscleGroup(stat.muscleGroup)}</p>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-[#6EE7B7]">{stat.totalReps} reps</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
+                      {formatWeight(stat.totalLoad, storeData.settings.unitSystem)}
+                    </p>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full bg-[#0b1320]">
+                  <div
+                    className="h-full rounded-full bg-[#6EE7B7]"
+                    style={{ width: `${Math.max(4, (stat.totalLoad / maxMuscleLoad) * 100)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            ))}
+          </div>
+        </section>
 
         <section className="space-y-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Análisis</p>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-white">Qué dicen los datos</h2>
+          <div className="px-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Insights</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Qué dicen tus datos</h2>
           </div>
 
           {insights.map((insight) => (
             <article
               key={insight.id}
               className={cn(
-                'rounded-[2.5rem] border p-5',
-                insight.tone === 'warn'
-                  ? 'border-orange-400/20 bg-orange-400/5'
-                  : insight.tone === 'danger'
-                    ? 'border-red-400/20 bg-red-400/5'
-                    : 'border-[#6EE7B7]/20 bg-[#6EE7B7]/5',
+                'rounded-[2rem] border p-4 shadow-[0_18px_40px_rgba(0,0,0,0.16)]',
+                insight.tone === 'danger'
+                  ? 'border-[#F97373]/20 bg-[#F97373]/8'
+                  : insight.tone === 'warn'
+                    ? 'border-[#F9B06E]/20 bg-[#F9B06E]/8'
+                    : 'border-[#6EE7B7]/18 bg-[#6EE7B7]/8',
               )}
             >
-              <p className="text-sm font-black text-white">{insight.title}</p>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{insight.body}</p>
+              <p className="font-black text-white">{insight.title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-300">{insight.body}</p>
             </article>
           ))}
         </section>
 
-        <section className="space-y-3">
+        <section className="app-panel rounded-[2.4rem] p-5">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Hitos</p>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-white">Récords Personales</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Milestones</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Hitos del sistema</h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 mt-4">
-            {Object.keys(personalRecords).length === 0 ? (
-              <div className="rounded-[2rem] border border-dashed border-white/5 bg-black/10 px-5 py-8 text-center text-sm text-zinc-500">
-                Sigue entrenando para ver tus récords aquí.
+          <div className="mt-6 space-y-3">
+            {milestones.map((milestone) => (
+              <div
+                key={milestone.id}
+                className={cn(
+                  'rounded-[1.8rem] border px-4 py-4',
+                  milestone.complete
+                    ? 'border-[#6EE7B7]/16 bg-[#6EE7B7]/8'
+                    : 'border-white/6 bg-[#0b1320]',
+                )}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-black text-white">{milestone.label}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-400">{milestone.description}</p>
+                  </div>
+                  <span className={cn(
+                    'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]',
+                    milestone.complete ? 'bg-[#6EE7B7] text-[#08111C]' : 'bg-white/6 text-zinc-500',
+                  )}>
+                    {milestone.complete ? 'Hecho' : 'Pendiente'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="app-panel rounded-[2.4rem] p-5">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Récords</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Mejores marcas</h2>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {personalRecordEntries.length === 0 ? (
+              <div className="rounded-[1.8rem] border border-dashed border-white/8 bg-[#0b1320] px-4 py-8 text-center text-sm text-zinc-500">
+                Sigue entrenando para desbloquear récords personales.
               </div>
             ) : (
-              Object.entries(personalRecords)
-                .sort(([, a], [, b]) => (b as number) - (a as number))
-                .slice(0, 5)
-                .map(([exerciseId, maxWeight]) => {
-                  const exercise = exercises.find((e) => e.id === exerciseId);
-                  return (
-                    <div key={exerciseId} className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3">
-                      <span className="text-sm font-bold text-white">
-                        {exercise ? exercise.name : 'Unknown Exercise'}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6EE7B7]">
-                        {formatWeight(maxWeight as number, storeData.settings.unitSystem)}
-                      </span>
-                    </div>
-                  );
-                })
+              personalRecordEntries.map(([exerciseId, maxWeight]) => {
+                const exercise = exercises.find((entry) => entry.id === exerciseId);
+                return (
+                  <div key={exerciseId} className="app-panel-soft flex items-center justify-between rounded-[1.7rem] px-4 py-4">
+                    <span className="font-bold text-white">{exercise ? exercise.name : 'Ejercicio'}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#6EE7B7]">
+                      {formatWeight(maxWeight, storeData.settings.unitSystem)}
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         </section>
 
-        <section className="rounded-[2.5rem] border border-white/5 bg-[#121721] p-6 text-sm text-zinc-400">
-          <p className="font-semibold text-white">Inicio de semana actual</p>
-          <p className="mt-2">{formatDayHeading(weeklyData[0]?.dayKey ?? '')}</p>
-        </section>
+        <div className="h-4" />
       </div>
     </div>
   );
