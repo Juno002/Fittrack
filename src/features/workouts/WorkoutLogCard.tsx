@@ -14,6 +14,7 @@ import type { WorkoutLog } from '@/store/types';
 interface WorkoutLogCardProps {
   log: WorkoutLog;
   expanded: boolean;
+  bodyweightOnlyMode?: boolean;
   onToggleExpand: () => void;
   onToggleBodyweight: (checked: boolean) => void;
   onRemoveLog: () => void;
@@ -27,6 +28,7 @@ interface WorkoutLogCardProps {
 export function WorkoutLogCard({
   log,
   expanded,
+  bodyweightOnlyMode = false,
   onToggleExpand,
   onToggleBodyweight,
   onRemoveLog,
@@ -58,7 +60,7 @@ export function WorkoutLogCard({
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-300">
-                {log.isBodyweight ? 'Peso corporal' : 'Con carga'}
+                {log.isBodyweight ? (bodyweightOnlyMode ? 'Sin equipo' : 'Peso corporal') : 'Con carga'}
               </span>
               <span className="rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#6EE7B7]">
                 {completedSetCount}/{log.sets.length} completadas
@@ -86,25 +88,44 @@ export function WorkoutLogCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3 text-left transition-colors hover:bg-black/20"
-        >
-          <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-            <Checkbox
-              id={`bodyweight-${log.id}`}
-              checked={log.isBodyweight}
-              onCheckedChange={(checked) => onToggleBodyweight(Boolean(checked))}
-              className="border-zinc-700 data-[state=checked]:bg-[#6EE7B7] data-[state=checked]:border-[#6EE7B7]"
-            />
-            <Label htmlFor={`bodyweight-${log.id}`} className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-              Peso corporal
-            </Label>
-          </div>
+        {bodyweightOnlyMode && log.isBodyweight ? (
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3 text-left transition-colors hover:bg-black/20"
+          >
+            <div className="flex items-center gap-3">
+              <span className="rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#6EE7B7]">
+                Sin equipo
+              </span>
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                Modo casa activado
+              </Label>
+            </div>
 
-          <ChevronDown className={cn('size-4 text-zinc-600 transition-transform duration-300', expanded && 'rotate-180')} />
-        </button>
+            <ChevronDown className={cn('size-4 text-zinc-600 transition-transform duration-300', expanded && 'rotate-180')} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-black/10 px-4 py-3 text-left transition-colors hover:bg-black/20"
+          >
+            <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                id={`bodyweight-${log.id}`}
+                checked={log.isBodyweight}
+                onCheckedChange={(checked) => onToggleBodyweight(Boolean(checked))}
+                className="border-zinc-700 data-[state=checked]:bg-[#6EE7B7] data-[state=checked]:border-[#6EE7B7]"
+              />
+              <Label htmlFor={`bodyweight-${log.id}`} className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                Peso corporal
+              </Label>
+            </div>
+
+            <ChevronDown className={cn('size-4 text-zinc-600 transition-transform duration-300', expanded && 'rotate-180')} />
+          </button>
+        )}
 
         <AnimatePresence initial={false}>
           {expanded && (

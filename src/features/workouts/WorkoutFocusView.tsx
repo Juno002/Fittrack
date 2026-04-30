@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ExerciseIcon } from '@/components/ExerciseIcon';
 import { Button } from '@/components/ui/button';
+import { GuidedStepVisual } from '@/features/workouts/GuidedStepVisual';
 import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import { buildGuidedWorkoutSteps } from '@/lib/guidedWorkout';
@@ -25,6 +26,64 @@ function formatTime(seconds: number) {
   const remainingSeconds = seconds % 60;
 
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function getTimedStepToneClass(kind: 'warmup' | 'transition' | 'rest' | 'cooldown') {
+  switch (kind) {
+    case 'warmup':
+      return 'text-[#6EE7B7]';
+    case 'cooldown':
+      return 'text-[#7AB9FF]';
+    case 'transition':
+    case 'rest':
+      return 'text-[#F9B06E]';
+  }
+}
+
+function getTimedStepLabel(kind: 'warmup' | 'transition' | 'rest' | 'cooldown') {
+  switch (kind) {
+    case 'warmup':
+      return 'CALENTAMIENTO';
+    case 'transition':
+      return 'PREPARACIÓN';
+    case 'rest':
+      return 'DESCANSO';
+    case 'cooldown':
+      return 'ENFRIAMIENTO';
+  }
+}
+
+function getTimedStepCueDotClass(kind: 'warmup' | 'transition' | 'rest' | 'cooldown') {
+  switch (kind) {
+    case 'cooldown':
+      return 'bg-[#7AB9FF]';
+    case 'transition':
+    case 'rest':
+      return 'bg-[#F9B06E]';
+    case 'warmup':
+      return 'bg-[#6EE7B7]';
+  }
+}
+
+function getStepPreviewLabel(step: ReturnType<typeof buildGuidedWorkoutSteps>[number] | null) {
+  if (!step) {
+    return 'Fin del bloque';
+  }
+
+  if (step.kind === 'main') {
+    return step.title;
+  }
+
+  switch (step.kind) {
+    case 'warmup':
+      return 'Calentamiento';
+    case 'transition':
+      return 'Preparación';
+    case 'rest':
+      return 'Descanso';
+    case 'cooldown':
+      return 'Enfriamiento';
+  }
 }
 
 export function WorkoutFocusView({
@@ -160,13 +219,7 @@ export function WorkoutFocusView({
     return null;
   }
 
-  const toneClass = currentStep.kind === 'warmup'
-    ? 'text-[#6EE7B7]'
-    : currentStep.kind === 'cooldown'
-      ? 'text-[#7AB9FF]'
-      : currentStep.kind === 'rest'
-        ? 'text-[#F9B06E]'
-        : 'text-white';
+  const toneClass = currentStep.kind === 'main' ? 'text-white' : getTimedStepToneClass(currentStep.kind);
 
   const timerCircleClass = currentStep.kind === 'warmup'
     ? 'text-[#6EE7B7]'
@@ -175,25 +228,12 @@ export function WorkoutFocusView({
       : 'text-[#F9B06E]';
 
   if (currentStep.kind !== 'main') {
-    const stepLabel = currentStep.kind === 'warmup'
-      ? 'CALENTAMIENTO'
-      : currentStep.kind === 'cooldown'
-        ? 'ENFRIAMIENTO'
-        : 'DESCANSO';
-
     const elapsedRatio = currentStep.durationSeconds === 0
       ? 1
       : 1 - (remainingSeconds / currentStep.durationSeconds);
-    const nextLabel = nextStep
-      ? nextStep.kind === 'main'
-        ? nextStep.title
-        : nextStep.kind === 'rest'
-          ? 'Descanso'
-          : nextStep.kind === 'cooldown'
-            ? 'Enfriamiento'
-            : 'Calentamiento'
-      : 'Fin del bloque';
+    const nextLabel = getStepPreviewLabel(nextStep);
     const pauseLabel = isPaused ? 'Continuar' : 'Pausar';
+    const hasVisual = Boolean(currentStep.visualKey);
 
     return (
       <motion.div
@@ -201,14 +241,14 @@ export function WorkoutFocusView({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="flex h-full flex-col items-center justify-center p-6"
+        className="flex h-full flex-col overflow-y-auto p-6"
       >
-        <div className="relative flex flex-1 flex-col items-center justify-center">
+        <div className="relative flex flex-1 flex-col items-center justify-start py-6">
           <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-white/5 opacity-20" />
 
           <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
             <span className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em]', toneClass, 'border-current/20 bg-white/5')}>
-              {stepLabel}
+              {getTimedStepLabel(currentStep.kind)}
             </span>
             <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
               Paso {currentStepNumber} de {guidedSteps.length}
@@ -219,7 +259,7 @@ export function WorkoutFocusView({
           </div>
 
           <div className="relative mb-10 flex items-center justify-center">
-            <svg className="size-64 -rotate-90">
+            <svg className={cn('-rotate-90', hasVisual ? 'size-56' : 'size-64')}>
               <circle
                 cx="128"
                 cy="128"
@@ -244,7 +284,7 @@ export function WorkoutFocusView({
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-8xl font-black tracking-tighter text-white tabular-nums">
+              <span className={cn('font-black tracking-tighter text-white tabular-nums', hasVisual ? 'text-7xl' : 'text-8xl')}>
                 {remainingSeconds}
                 <span className="ml-1 text-2xl text-zinc-500">s</span>
               </span>
@@ -257,6 +297,13 @@ export function WorkoutFocusView({
             transition={{ delay: 0.2 }}
             className="w-full max-w-sm rounded-[2.6rem] border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl"
           >
+            {currentStep.visualKey ? (
+              <GuidedStepVisual
+                visualKey={currentStep.visualKey}
+                title={currentStep.title}
+                className="mb-5"
+              />
+            ) : null}
             <h2 className="text-2xl font-black tracking-tight text-white">{currentStep.title}</h2>
             <p className="mt-3 text-sm leading-relaxed text-zinc-300">{currentStep.subtitle}</p>
             <p className="mt-4 text-xs leading-relaxed text-zinc-500">{currentStep.detail}</p>
@@ -267,7 +314,7 @@ export function WorkoutFocusView({
             <div className="mt-3 space-y-2">
               {currentStep.cues.map((cue) => (
                 <div key={cue} className="flex items-start gap-3">
-                  <span className={cn('mt-1 size-2 shrink-0 rounded-full', currentStep.kind === 'cooldown' ? 'bg-[#7AB9FF]' : currentStep.kind === 'rest' ? 'bg-[#F9B06E]' : 'bg-[#6EE7B7]')} />
+                  <span className={cn('mt-1 size-2 shrink-0 rounded-full', getTimedStepCueDotClass(currentStep.kind))} />
                   <p className="text-sm leading-relaxed text-zinc-300">{cue}</p>
                 </div>
               ))}
@@ -388,7 +435,6 @@ export function WorkoutFocusView({
                     <span className="text-6xl font-black tracking-tighter text-white">{currentStep.reps}</span>
                     <span className="pb-2 text-lg font-black text-zinc-500">reps</span>
                   </div>
-                  <p className="mt-4 text-xs leading-relaxed text-zinc-500">{currentStep.detail}</p>
                 </div>
 
                 <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
@@ -421,11 +467,13 @@ export function WorkoutFocusView({
                     <p className="text-sm font-black text-white">
                       {nextStep.kind === 'main'
                         ? nextStep.title
-                        : nextStep.kind === 'rest'
-                          ? 'Descanso automático'
-                          : nextStep.kind === 'cooldown'
-                            ? 'Enfriamiento automático'
-                            : 'Siguiente calentamiento'}
+                        : nextStep.kind === 'transition'
+                          ? 'Preparación automática'
+                          : nextStep.kind === 'rest'
+                            ? 'Descanso automático'
+                            : nextStep.kind === 'cooldown'
+                              ? 'Enfriamiento automático'
+                              : 'Siguiente calentamiento'}
                     </p>
                     <ArrowRight className="size-4 text-zinc-500" />
                   </div>

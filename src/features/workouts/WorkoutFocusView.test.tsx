@@ -82,4 +82,40 @@ describe('WorkoutFocusView timer', () => {
 
     expect(findTimerValue(58)).toBeInTheDocument();
   });
+
+  it('renders the local guided visual when the current step has a visual match', () => {
+    render(
+      <WorkoutFocusView
+        draftSession={DRAFT_SESSION}
+        elapsedSeconds={0}
+        guidedStepIndex={0}
+        onAdvanceGuidedStep={vi.fn()}
+        onClearStoredRest={vi.fn()}
+        onToggleSetCompleted={vi.fn()}
+        onFinish={vi.fn()}
+        onGoToEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole('img', { name: /guia visual de circulos de brazos/i }).length).toBeGreaterThan(0);
+  });
+
+  it('shows preparation semantics for the transition step', () => {
+    render(
+      <WorkoutFocusView
+        draftSession={DRAFT_SESSION}
+        elapsedSeconds={60}
+        guidedStepIndex={3}
+        onAdvanceGuidedStep={vi.fn()}
+        onClearStoredRest={vi.fn()}
+        onToggleSetCompleted={vi.fn()}
+        onFinish={vi.fn()}
+        onGoToEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('PREPARACIÓN')).toBeInTheDocument();
+    expect(screen.getByText('Prepárate para empezar')).toBeInTheDocument();
+    expect(screen.queryByText('DESCANSO')).not.toBeInTheDocument();
+  });
 });

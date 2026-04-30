@@ -55,6 +55,7 @@ export type {
   RecoveryCheckIn,
   ReminderSettings,
   SleepLog,
+  TrainingMode,
   TrainingDay,
   TrainingSchedule,
   UserProfile,
@@ -64,7 +65,7 @@ export type {
 } from '@/store/types';
 
 export const STORAGE_KEY = 'fittrack-storage';
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 5;
 const MUSCLE_GROUP_SET = new Set(MUSCLE_GROUPS);
 const TRAINING_DAY_SET = new Set<TrainingDay>(TRAINING_DAYS);
 
@@ -101,6 +102,7 @@ const DEFAULT_REMINDERS: ReminderSettings = {
 const DEFAULT_SETTINGS: AppSettings = {
   unitSystem: 'metric',
   onboarded: false,
+  trainingMode: 'home-no-equipment',
   defaultRestDuration: DEFAULT_REST_DURATION_SECONDS,
   connectedSignals: DEFAULT_CONNECTED_SIGNALS,
   trainingSchedule: DEFAULT_TRAINING_SCHEDULE,
@@ -111,6 +113,7 @@ function createDefaultSettings(): AppSettings {
   return {
     unitSystem: DEFAULT_SETTINGS.unitSystem,
     onboarded: DEFAULT_SETTINGS.onboarded,
+    trainingMode: DEFAULT_SETTINGS.trainingMode,
     defaultRestDuration: DEFAULT_SETTINGS.defaultRestDuration,
     connectedSignals: { ...DEFAULT_SETTINGS.connectedSignals },
     trainingSchedule: {
@@ -473,6 +476,7 @@ function normalizeSettings(value: unknown): AppSettings {
   return {
     unitSystem: settings.unitSystem === 'imperial' ? 'imperial' : defaults.unitSystem,
     onboarded: typeof settings.onboarded === 'boolean' ? settings.onboarded : defaults.onboarded,
+    trainingMode: settings.trainingMode === 'general' ? 'general' : defaults.trainingMode,
     defaultRestDuration: typeof settings.defaultRestDuration === 'number'
       ? clampRestDuration(settings.defaultRestDuration)
       : defaults.defaultRestDuration,

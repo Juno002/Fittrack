@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
+import { getMovementModeLabel } from '@/lib/trainingMode';
 import { selectReadinessSummary } from '@/store/selectors';
 import type { ExerciseDefinition } from '@/store/types';
 import { MuscleHighlight } from '@/components/MuscleHighlight';
@@ -28,6 +29,7 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
 
   const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
   const isReady = readiness.readinessGate !== 'recover' && exerciseFatigue < 45;
+  const movementModeLabel = getMovementModeLabel(exercise.isBodyweight, data.settings.trainingMode);
   const readinessCaption = readiness.readinessGate === 'recover'
     ? 'Readiness global bajo'
     : isReady
@@ -67,7 +69,7 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
             <div>
               <h1 className="text-2xl font-black">{exercise.name}</h1>
               <p className="mt-1 text-xs text-zinc-400">
-                {formatMuscleGroup(exercise.muscleGroup)} • {exercise.mechanic === 'compound' ? 'Compuesto' : exercise.mechanic === 'isolation' ? 'Aislamiento' : exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
+                {formatMuscleGroup(exercise.muscleGroup)} • {exercise.mechanic === 'compound' ? 'Compuesto' : exercise.mechanic === 'isolation' ? 'Aislamiento' : movementModeLabel}
               </p>
               <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">
                 <span>PRINCIPIANTE</span>

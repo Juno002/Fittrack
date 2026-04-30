@@ -94,6 +94,7 @@ describe('store migration', () => {
       settings: {
         unitSystem: 'imperial',
         onboarded: true,
+        trainingMode: 'general',
       },
       calorieGoal: 2400,
       macrosGoal: { protein: 180, carbs: 260, fat: 70 },
@@ -128,6 +129,7 @@ describe('store migration', () => {
     expect(migrated.settings.connectedSignals).toEqual({ sleep: true, food: true, recovery: true });
     expect(migrated.settings.trainingSchedule).toEqual({ days: ['mon', 'wed', 'fri'], preferredTime: 'afternoon' });
     expect(migrated.settings.reminders).toEqual({ enabled: false, time: '18:30' });
+    expect(migrated.settings.trainingMode).toBe('general');
     expect(migrated.profile.name).toBe('Junior');
     expect(migrated.profile.age).toBe(31);
   });

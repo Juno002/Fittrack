@@ -11,6 +11,12 @@ import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { buildGuidedRoutinePreset, type GuidedRoutinePresetId } from '@/lib/guidedWorkout';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
+import {
+  filterTemplatesByTrainingMode,
+  getMovementModeLabel,
+  getTrainingModeLabel,
+  isHomeNoEquipmentMode,
+} from '@/lib/trainingMode';
 import { cn } from '@/lib/utils';
 import { buildWorkoutLog } from '@/lib/workout';
 import { useStore } from '@/store';
@@ -27,6 +33,8 @@ const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoul
 export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
   const data = useStoreData();
+  const trainingMode = data.settings.trainingMode;
+  const bodyweightOnlyMode = isHomeNoEquipmentMode(trainingMode);
   const readiness = useMemo(() => selectReadinessSummary(data), [data]);
   const fatigue = readiness.localFatigue;
   const hasTrainingData = readiness.hasTrainingData;
@@ -50,6 +58,10 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
       .map((presetId) => buildGuidedRoutinePreset(exercises, presetId, data.sessions))
       .filter((preset) => preset.logs.length > 0),
     [data.sessions, exercises],
+  );
+  const visibleTemplates = useMemo(
+    () => filterTemplatesByTrainingMode(data.templates, trainingMode),
+    [data.templates, trainingMode],
   );
 
   const filteredExercises = useMemo(() => {
@@ -179,13 +191,20 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
             <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Entrena segun recuperacion</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Entrenar</h1>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-              Usa catalogo, plantillas y tu score de recuperacion para construir la sesion correcta en vez de forzar la semana.
+              {bodyweightOnlyMode
+                ? 'Todo lo que ves aqui esta filtrado para casa sin equipo, con foco en movimientos que si puedes hacer hoy.'
+                : 'Usa catalogo, plantillas y tu score de recuperacion para construir la sesion correcta en vez de forzar la semana.'}
             </p>
           </div>
 
           <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
             <Settings2 className="size-5" />
           </HeaderActionButton>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#6EE7B7]">
+            {getTrainingModeLabel(trainingMode)}
+          </span>
         </div>
       </header>
 
@@ -349,7 +368,7 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                             <div>
                               <p className="truncate text-sm font-black text-white">{exercise.name}</p>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
-                                {formatMuscleGroup(exercise.muscleGroup)} · {exercise.isBodyweight ? 'Peso corporal' : 'Carga externa'}
+                                {formatMuscleGroup(exercise.muscleGroup)} · {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
                               </p>
                             </div>
                             <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${statusClass}`}>
@@ -375,13 +394,15 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
             </>
           ) : (
             <div className="mt-5 space-y-3">
-              {data.templates.length === 0 ? (
+              {visibleTemplates.length === 0 ? (
                 <div className="space-y-4">
                   <div className="rounded-[1.9rem] border border-dashed border-white/8 bg-[#0b1320] px-5 py-12 text-center">
                     <Trophy className="mx-auto size-8 text-zinc-700" />
                     <h2 className="mt-4 text-xl font-black text-white">Sin plantillas guardadas</h2>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                      Guarda una sesion completa como plantilla y aparecera aqui lista para repetir.
+                      {data.templates.length > 0
+                        ? 'Tus plantillas actuales usan equipo o carga externa. Cambia el modo en Perfil si quieres volver a verlas.'
+                        : 'Guarda una sesion completa como plantilla y aparecera aqui lista para repetir.'}
                     </p>
                   </div>
 
@@ -414,7 +435,7 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                   </section>
                 </div>
               ) : (
-                data.templates.map((template) => (
+                visibleTemplates.map((template) => (
                   <article key={template.id} className="app-panel-soft rounded-[1.9rem] p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>

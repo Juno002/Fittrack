@@ -50,7 +50,7 @@ function MetricTile({
 
 export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
   const storeData = useStoreData();
-  const { exercises } = useExerciseCatalog();
+  const { exercises } = useExerciseCatalog({ respectTrainingMode: false });
   const streak = useMemo(() => selectRecoveryConsistencyStreak(storeData), [storeData]);
   const weeklyVolume = useMemo(() => selectPrimaryWeeklyVolume(storeData), [storeData]);
   const sleepChartData = useMemo(() => selectSleepChartData(storeData), [storeData]);

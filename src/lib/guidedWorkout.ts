@@ -11,16 +11,27 @@ import type {
 } from '@/store/types';
 
 export type GuidedRoutinePresetId = 'upper' | 'lower' | 'core';
+export type GuidedStepVisualKey =
+  | 'arm-circles'
+  | 'chest-opener'
+  | 'child-pose'
+  | 'glute-release'
+  | 'hamstrings-ankles'
+  | 'opposite-limbs-floor'
+  | 'shoulder-circles'
+  | 'torso-rotation'
+  | 'upper-back-release';
 
 type GuidedStepTone = 'mint' | 'amber' | 'blue';
 
 interface GuidedTimedStep {
   id: string;
-  kind: 'warmup' | 'rest' | 'cooldown';
+  kind: 'warmup' | 'transition' | 'rest' | 'cooldown';
   title: string;
   subtitle: string;
   detail: string;
   cues: string[];
+  visualKey?: GuidedStepVisualKey;
   durationSeconds: number;
   tone: GuidedStepTone;
 }
@@ -63,7 +74,7 @@ interface RoutinePresetMeta {
 
 interface GuidedFlowCopy {
   warmup: Array<Omit<GuidedTimedStep, 'id' | 'kind'>>;
-  warmupRest: Omit<GuidedTimedStep, 'id' | 'kind'>;
+  transition: Omit<GuidedTimedStep, 'id' | 'kind'>;
   cooldown: Array<Omit<GuidedTimedStep, 'id' | 'kind'>>;
 }
 
@@ -75,7 +86,7 @@ const ROUTINE_PRESET_META: RoutinePresetMeta[] = [
   {
     id: 'upper',
     name: 'Rutina tren superior',
-    description: 'Empuje y tiron de base con progresion hacia variantes mas exigentes o con carga externa.',
+    description: 'Empuje y tiron de base con progresion hacia variantes mas exigentes sin salirte del trabajo casero.',
     chip: 'Guiada',
     muscleGroups: ['chest', 'back', 'shoulders', 'arms'],
     preferredIds: [
@@ -175,49 +186,49 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
       warmup: [
         {
           title: 'Marcha activa',
-          subtitle: 'Eleva rodillas y mueve brazos con ritmo.',
+          subtitle: 'Sube rodillas y mueve brazos sin perder el ritmo.',
           detail: 'Busca ritmo y respiracion estable antes de cargar las piernas.',
           cues: [
-            'Eleva una rodilla a la vez sin encoger los hombros.',
-            'Balancea los brazos con el mismo ritmo de las piernas.',
-            'Mantén el abdomen suave pero activo mientras respiras.',
+            'Sube una rodilla a la vez hasta donde te salga cómodo.',
+            'Mueve los brazos al mismo ritmo, sin tensar el cuello.',
+            'Respira parejo y mantén el pecho erguido.',
           ],
           durationSeconds: 60,
           tone: 'mint',
         },
         {
-          title: 'Movilidad de cadera',
-          subtitle: 'Sentadilla parcial y apertura controlada.',
+          title: 'Sentadilla corta con apertura',
+          subtitle: 'Baja un poco, abre rodillas y vuelve a subir con control.',
           detail: 'Abre rango sin forzar y prepara tobillos, caderas y rodillas.',
           cues: [
-            'Baja solo hasta donde mantengas los talones apoyados.',
-            'Abre las rodillas siguiendo la linea de los pies.',
-            'Sube lento y vuelve a repetir sin rebote.',
+            'Separa los pies al ancho de los hombros.',
+            'Baja solo un poco, con los talones pegados al suelo.',
+            'Sube despacio y deja que las rodillas sigan la línea de los pies.',
           ],
           durationSeconds: 60,
           tone: 'blue',
         },
         {
-          title: 'Bisagra y puente',
-          subtitle: 'Activa gluteos y cadena posterior.',
-          detail: 'Piensa en tension controlada, no en velocidad.',
+          title: 'Puente de gluteos suave',
+          subtitle: 'Eleva la cadera y despierta gluteos y parte trasera de las piernas.',
+          detail: 'Piensa en control, no en velocidad ni altura máxima.',
           cues: [
-            'Empuja la cadera hacia atras antes de inclinar el torso.',
-            'Aprieta gluteos arriba durante un segundo.',
-            'Mantén el cuello largo y la espalda neutra.',
+            'Acuéstate con rodillas dobladas y pies apoyados.',
+            'Aprieta gluteos y sube la cadera despacio.',
+            'Baja con control, sin dejarte caer.',
           ],
           durationSeconds: 60,
           tone: 'mint',
         },
       ],
-      warmupRest: {
-        title: 'Prepara el primer bloque',
-        subtitle: 'Respira y coloca tu postura.',
-        detail: 'En un minuto empieza la parte principal.',
+      transition: {
+        title: 'Prepárate para empezar',
+        subtitle: 'Respira, planta tu postura y entra al primer ejercicio.',
+        detail: 'En breve empieza la primera serie del bloque principal.',
         cues: [
-          'Suelta tension de hombros y mandibula.',
-          'Toma aire por nariz y exhala largo.',
-          'Repasa mentalmente la tecnica del primer ejercicio.',
+          'Suelta hombros y mandibula.',
+          'Planta los pies como los usaras en la primera serie.',
+          'Haz una respiracion larga y repasa el primer movimiento.',
         ],
         durationSeconds: 60,
         tone: 'amber',
@@ -232,6 +243,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
             'Mantén la espalda larga sin encorvarte.',
             'Respira lento y evita forzar el estiramiento.',
           ],
+          visualKey: 'glute-release',
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -244,6 +256,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
             'Inclina el torso solo hasta sentir un tiron suave.',
             'Mueve tobillos y pies mientras bajas pulsaciones.',
           ],
+          visualKey: 'hamstrings-ankles',
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -255,49 +268,50 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
     return {
       warmup: [
         {
-          title: 'Respiracion y brace',
-          subtitle: 'Activa el abdomen antes de mover.',
-          detail: 'Inhala profundo, exhala largo y crea tension ligera en el centro.',
+          title: 'Respira y aprieta el abdomen',
+          subtitle: 'Inhala, exhala y deja el abdomen firme antes de empezar.',
+          detail: 'Usa la respiración para preparar el centro sin tensar cuello ni hombros.',
           cues: [
-            'Llena costillas y abdomen con aire.',
-            'Exhala despacio como si empanaras un vidrio.',
-            'Siente el abdomen firme sin apretar el cuello.',
+            'Toma aire por la nariz llenando pecho y abdomen.',
+            'Suelta el aire despacio por la boca.',
+            'Al final de la exhalación, aprieta suavemente el abdomen.',
           ],
           durationSeconds: 60,
           tone: 'mint',
         },
         {
-          title: 'Movilidad de columna',
-          subtitle: 'Gato-vaca y rotacion suave.',
-          detail: 'Segmenta la espalda sin forzar el cuello.',
+          title: 'Gato-vaca suave',
+          subtitle: 'Redondea y arquea la espalda poco a poco.',
+          detail: 'Mueve la columna con calma y sin forzar el cuello.',
           cues: [
-            'Redondea y extiende la espalda vertebra por vertebra.',
-            'Mantén manos y rodillas bien apoyadas.',
-            'El movimiento debe verse fluido, no brusco.',
+            'Apoya manos y rodillas en una posición cómoda.',
+            'Redondea la espalda hacia arriba y luego abre el pecho.',
+            'Mueve la columna despacio, sin forzar el cuello.',
           ],
           durationSeconds: 60,
           tone: 'blue',
         },
         {
-          title: 'Activacion anti-extension',
-          subtitle: 'Prepara pelvis y costillas.',
-          detail: 'Piensa en estabilidad antes que en velocidad.',
+          title: 'Brazos y piernas opuestos en suelo',
+          subtitle: 'Desde el suelo, alarga un brazo y la pierna contraria sin mover la cintura.',
+          detail: 'Piensa en estabilidad y control antes que en velocidad.',
           cues: [
-            'Lleva costillas hacia abajo con suavidad.',
-            'Mantén la pelvis neutra mientras respiras.',
-            'Activa el centro como si fueras a recibir un golpe suave.',
+            'Acuéstate boca arriba con rodillas dobladas y brazos extendidos hacia el techo.',
+            'Extiende un brazo y la pierna contraria despacio.',
+            'Vuelve al centro y cambia de lado sin arquear la espalda.',
           ],
+          visualKey: 'opposite-limbs-floor',
           durationSeconds: 60,
           tone: 'mint',
         },
       ],
-      warmupRest: {
-        title: 'Centro listo',
-        subtitle: 'Empieza el bloque principal en breve.',
-        detail: 'Mantén abdomen activo y hombros relajados.',
+      transition: {
+        title: 'Prepárate para empezar',
+        subtitle: 'Acomoda manos y espalda antes del primer ejercicio.',
+        detail: 'Deja el abdomen activo y entra con control al bloque principal.',
         cues: [
-          'Suelta la respiracion y vuelve a bracear.',
-          'Acomoda manos, apoyo y rango antes de empezar.',
+          'Suelta el aire y vuelve a apretar suavemente el abdomen.',
+          'Acomoda manos, espalda y apoyo antes de empezar.',
           'Piensa en control, no en velocidad.',
         ],
         durationSeconds: 60,
@@ -313,6 +327,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
             'Mantén hombros relajados y cuello largo.',
             'Haz la exhalacion mas larga que la inhalacion.',
           ],
+          visualKey: 'torso-rotation',
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -325,6 +340,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
             'Estira brazos al frente o a los lados.',
             'Respira hacia la espalda baja y costillas.',
           ],
+          visualKey: 'child-pose',
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -336,49 +352,51 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
     warmup: [
       {
         title: 'Circulos de brazos',
-        subtitle: 'Abre hombros y pecho antes de empujar.',
-        detail: 'Hazlos amplios y fluidos.',
+        subtitle: 'Abre hombros y pecho con circulos amplios y suaves.',
+        detail: 'Hazlos amplios y fluidos, sin tensar el cuello.',
         cues: [
-          'Traza circulos amplios hacia delante y hacia atras.',
-          'Mantén el pecho abierto y hombros lejos de las orejas.',
-          'Empieza pequeño y aumenta el rango poco a poco.',
+          'Empieza con circulos pequeños y ve ampliándolos.',
+          'Haz unas repeticiones hacia delante y otras hacia atrás.',
+          'Mantén los hombros lejos de las orejas.',
         ],
+        visualKey: 'arm-circles',
         durationSeconds: 60,
         tone: 'mint',
       },
       {
-        title: 'Activacion escapular',
-        subtitle: 'Protrae y retrae con control.',
-        detail: 'Piensa en preparar hombros, pecho y espalda alta.',
+        title: 'Circulos de hombros',
+        subtitle: 'Lleva los hombros hacia atrás y adelante para soltar la parte alta.',
+        detail: 'Piensa en soltar hombros y espalda alta antes del bloque principal.',
         cues: [
-          'Empuja el suelo o junta escapulas sin doblar codos de mas.',
-          'Siente movimiento en hombros, no solo en manos.',
-          'Haz cada repeticion lenta y bien controlada.',
+          'Sube los hombros, llévalos atrás y bájalos despacio.',
+          'Haz luego el mismo recorrido hacia delante.',
+          'Mueve solo hombros y espalda alta, sin apretar el cuello.',
         ],
+        visualKey: 'shoulder-circles',
         durationSeconds: 60,
         tone: 'blue',
       },
       {
-        title: 'Serie tecnica',
-        subtitle: 'Ensaya el patron principal sin prisa.',
-        detail: 'Prepara articulaciones y ritmo antes del bloque duro.',
+        title: 'Prueba el movimiento',
+        subtitle: 'Haz unas repeticiones suaves del ejercicio que viene.',
+        detail: 'Prepara articulaciones y ritmo antes del bloque principal.',
         cues: [
-          'Haz repeticiones suaves del patron que viene despues.',
-          'Usa menos rango si aun te sientes tieso.',
-          'Enfocate en postura y respiracion, no en cansarte.',
+          'Repite el gesto del primer ejercicio, pero más lento.',
+          'Usa menos rango si todavía te sientes rígido.',
+          'Piensa en postura y control, no en cansarte.',
         ],
         durationSeconds: 60,
         tone: 'mint',
       },
     ],
-    warmupRest: {
-      title: 'Ajusta respiracion',
-      subtitle: 'En breve inicia el ejercicio principal.',
-      detail: 'Sacude brazos y entra al primer bloque con control.',
+    transition: {
+      title: 'Prepárate para empezar',
+      subtitle: 'Suelta tension y entra suave al primer ejercicio.',
+      detail: 'Ajusta la postura de salida antes de empezar la primera serie.',
       cues: [
         'Afloja munecas, hombros y cuello.',
-        'Respira largo y acomoda la postura de salida.',
-        'Visualiza la primera serie antes de empezar.',
+        'Abre el pecho y acomoda la postura de salida.',
+        'Haz una repeticion de prueba si la necesitas.',
       ],
       durationSeconds: 60,
       tone: 'amber',
@@ -393,6 +411,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           'Eleva esternon sin arquear la zona lumbar.',
           'Sostén la postura mientras exhalas lento.',
         ],
+        visualKey: 'chest-opener',
         durationSeconds: 60,
         tone: 'blue',
       },
@@ -405,6 +424,7 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           'Separa escapulas redondeando la parte alta de la espalda.',
           'Deja que la respiracion vaya bajando el pulso.',
         ],
+        visualKey: 'upper-back-release',
         durationSeconds: 60,
         tone: 'mint',
       },
@@ -567,9 +587,9 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
   });
 
   steps.push({
-    id: 'warmup-rest',
-    kind: 'rest',
-    ...copy.warmupRest,
+    id: 'transition-0',
+    kind: 'transition',
+    ...copy.transition,
   });
 
   const mainSteps = draftSession.logs.flatMap((log) =>

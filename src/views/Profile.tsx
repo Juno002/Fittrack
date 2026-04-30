@@ -15,6 +15,7 @@ import {
   formatPreferredTrainingTime,
   formatTrainingDay,
 } from '@/lib/display';
+import { getTrainingModeLabel } from '@/lib/trainingMode';
 import {
   getDisplayWeight,
   getStorageWeight,
@@ -30,6 +31,7 @@ import type {
   ConnectedSignals,
   MacroGoal,
   PreferredTrainingTime,
+  TrainingMode,
   TrainingDay,
   UserProfile,
 } from '@/store/types';
@@ -40,6 +42,18 @@ interface ProfileProps {
 
 const DAY_OPTIONS: TrainingDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const TIME_OPTIONS: PreferredTrainingTime[] = ['morning', 'afternoon', 'evening'];
+const TRAINING_MODE_OPTIONS: Array<{ value: TrainingMode; label: string; detail: string }> = [
+  {
+    value: 'home-no-equipment',
+    label: 'Casa sin equipo',
+    detail: 'Filtra catalogo, rutinas y constructor a movimientos caseros sin equipo.',
+  },
+  {
+    value: 'general',
+    label: 'Flexible',
+    detail: 'Deja visible todo el catalogo, incluyendo carga externa y opciones mas abiertas.',
+  },
+];
 
 function copySettings(settings: AppSettings): AppSettings {
   return {
@@ -119,6 +133,7 @@ export function Profile({ onBack }: ProfileProps) {
     ? settingsDraft.trainingSchedule.days.map((day) => formatTrainingDay(day)).join(' · ')
     : 'Sin días definidos';
   const reminderLabel = settingsDraft.reminders.enabled ? settingsDraft.reminders.time : 'Off';
+  const trainingModeLabel = getTrainingModeLabel(settingsDraft.trainingMode);
   const weightLabel = `${displayWeightDraft} ${settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'}`;
   const profileWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
   const suggestedTargets = useMemo(
@@ -280,6 +295,7 @@ export function Profile({ onBack }: ProfileProps) {
             <ProfileSnapshotTile label="Prote sugerida" value={`${suggestedTargets.macros.protein} g`} detail="Objetivo base para recuperar y sostener progreso." />
             <ProfileSnapshotTile label="Energia sugerida" value={`${suggestedTargets.calories} kcal`} detail="Estimacion inicial segun tu perfil y frecuencia." />
             <ProfileSnapshotTile label="Días activos" value={String(settingsDraft.trainingSchedule.days.length)} detail={scheduleDaysLabel} />
+            <ProfileSnapshotTile label="Modo" value={trainingModeLabel} detail="Restringe lo que ves segun tu contexto de entrenamiento." />
             <ProfileSnapshotTile label="Reminder" value={reminderLabel} detail="Preferencia local para recordarte entrenar." />
           </div>
         </section>
@@ -535,6 +551,39 @@ export function Profile({ onBack }: ProfileProps) {
                 {formatPreferredTrainingTime(timeOption)}
               </button>
             ))}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Modo de entrenamiento</Label>
+            <div className="grid gap-3">
+              {TRAINING_MODE_OPTIONS.map((option) => {
+                const isActive = settingsDraft.trainingMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSettingsDraft((current) => ({ ...current, trainingMode: option.value }))}
+                    className={`rounded-[1.7rem] border px-4 py-4 text-left transition-all ${
+                      isActive
+                        ? 'border-transparent bg-[#6EE7B7]/12 text-white'
+                        : 'border-white/8 bg-[#0b1320] text-zinc-400'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-white">{option.label}</p>
+                        <p className="mt-2 text-sm leading-relaxed text-zinc-400">{option.detail}</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] ${
+                        isActive ? 'bg-[#6EE7B7] text-[#08111C]' : 'bg-white/6 text-zinc-500'
+                      }`}>
+                        {isActive ? 'Activo' : 'Off'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 

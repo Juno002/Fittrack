@@ -28,6 +28,9 @@ export type TrainingDay = (typeof TRAINING_DAYS)[number];
 export const PREFERRED_TRAINING_TIMES = ['morning', 'afternoon', 'evening'] as const;
 export type PreferredTrainingTime = (typeof PREFERRED_TRAINING_TIMES)[number];
 
+export const TRAINING_MODES = ['home-no-equipment', 'general'] as const;
+export type TrainingMode = (typeof TRAINING_MODES)[number];
+
 export interface ExerciseCatalogEntry {
   id: string;
   name: string;
@@ -159,6 +162,7 @@ export interface ReminderSettings {
 export interface AppSettings {
   unitSystem: 'metric' | 'imperial';
   onboarded: boolean;
+  trainingMode: TrainingMode;
   defaultRestDuration?: number;
   connectedSignals: ConnectedSignals;
   trainingSchedule: TrainingSchedule;

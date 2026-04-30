@@ -1,12 +1,23 @@
 import { startTransition, useEffect, useState } from 'react';
 
 import { loadExerciseLibrary } from '@/lib/exercises';
+import { filterExercisesByTrainingMode } from '@/lib/trainingMode';
 import { useStore } from '@/store';
 import type { ExerciseDefinition } from '@/store/types';
 
-export function useExerciseCatalog() {
+interface UseExerciseCatalogOptions {
+  respectTrainingMode?: boolean;
+}
+
+export function useExerciseCatalog(options: UseExerciseCatalogOptions = {}) {
+  const respectTrainingMode = options.respectTrainingMode ?? true;
   const customExercises = useStore((state) => state.customExercises);
-  const [exercises, setExercises] = useState<ExerciseDefinition[]>(customExercises);
+  const trainingMode = useStore((state) => state.settings.trainingMode);
+  const [exercises, setExercises] = useState<ExerciseDefinition[]>(() => (
+    respectTrainingMode
+      ? filterExercisesByTrainingMode(customExercises, trainingMode)
+      : customExercises
+  ));
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +31,11 @@ export function useExerciseCatalog() {
         }
 
         startTransition(() => {
-          setExercises(catalog);
+          setExercises(
+            respectTrainingMode
+              ? filterExercisesByTrainingMode(catalog, trainingMode)
+              : catalog,
+          );
         });
       })
       .finally(() => {
@@ -32,7 +47,7 @@ export function useExerciseCatalog() {
     return () => {
       isMounted = false;
     };
-  }, [customExercises]);
+  }, [customExercises, respectTrainingMode, trainingMode]);
 
   return {
     exercises,

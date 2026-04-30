@@ -17,6 +17,11 @@ import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
 import { buildGuidedRoutinePreset, type GuidedRoutinePresetId } from '@/lib/guidedWorkout';
 import { hasValidWorkoutLog } from '@/lib/workout';
+import {
+  filterTemplatesByTrainingMode,
+  getTrainingModeLabel,
+  isHomeNoEquipmentMode,
+} from '@/lib/trainingMode';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store';
 import type { WorkoutTemplate } from '@/store/types';
@@ -116,6 +121,8 @@ function SessionStatTile({
 export function Workouts({ onExit }: WorkoutsProps) {
   const storeData = useStoreData();
   const { exercises } = useExerciseCatalog();
+  const trainingMode = storeData.settings.trainingMode;
+  const bodyweightOnlyMode = isHomeNoEquipmentMode(trainingMode);
   const draftSession = useStore((state) => state.draftSession);
   const setDraftName = useStore((state) => state.setDraftName);
   const setDraftRestDuration = useStore((state) => state.setDraftRestDuration);
@@ -150,6 +157,10 @@ export function Workouts({ onExit }: WorkoutsProps) {
       .map((presetId) => buildGuidedRoutinePreset(exercises, presetId, storeData.sessions))
       .filter((preset) => preset.logs.length > 0),
     [exercises, storeData.sessions],
+  );
+  const visibleTemplates = useMemo(
+    () => filterTemplatesByTrainingMode(storeData.templates, trainingMode),
+    [storeData.templates, trainingMode],
   );
 
   useEffect(() => {
@@ -495,7 +506,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
                   ))}
                 </section>
 
-                {storeData.templates.length > 0 ? (
+                {visibleTemplates.length > 0 ? (
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-4 px-1">
                       <div>
@@ -503,12 +514,12 @@ export function Workouts({ onExit }: WorkoutsProps) {
                         <h3 className="mt-2 text-2xl font-black tracking-tight text-white">Rutinas guardadas</h3>
                       </div>
                       <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
-                        {storeData.templates.length}
+                        {visibleTemplates.length}
                       </span>
                     </div>
 
                     <div className="space-y-3">
-                      {storeData.templates.slice(0, 3).map((template) => (
+                      {visibleTemplates.slice(0, 3).map((template) => (
                         <div key={template.id}>
                           <TemplateStarterCard
                             template={template}
@@ -518,18 +529,28 @@ export function Workouts({ onExit }: WorkoutsProps) {
                       ))}
                     </div>
                   </section>
+                ) : storeData.templates.length > 0 ? (
+                  <section className="app-panel-soft rounded-[2.2rem] p-5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Plantillas ocultas</p>
+                    <h3 className="mt-2 text-xl font-black tracking-tight text-white">Tus plantillas con equipo quedan fuera</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                      Este modo solo deja visibles rutinas compatibles con casa sin equipo. Si quieres recuperar las otras, cambia el modo desde Perfil.
+                    </p>
+                  </section>
                 ) : null}
 
                 <section className="app-panel-soft rounded-[2.2rem] p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Constructor manual</p>
-                      <h3 className="mt-2 text-xl font-black tracking-tight text-white">Añade un ejercicio propio o del catálogo</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                        Ideal si quieres mezclar movimientos o diseñar una variante más personalizada.
-                      </p>
-                    </div>
-                    <Sparkles className="mt-1 size-5 text-[#6EE7B7]" />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Constructor manual</p>
+                        <h3 className="mt-2 text-xl font-black tracking-tight text-white">Añade un ejercicio propio o del catálogo</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                        {bodyweightOnlyMode
+                          ? 'Ideal si quieres montar una sesion casera sin salirte de variantes sin equipo.'
+                          : 'Ideal si quieres mezclar movimientos o diseñar una variante más personalizada.'}
+                        </p>
+                      </div>
+                      <Sparkles className="mt-1 size-5 text-[#6EE7B7]" />
                   </div>
 
                   <Button
@@ -580,6 +601,9 @@ export function Workouts({ onExit }: WorkoutsProps) {
                         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                           Ajusta series, repeticiones y estructura antes de volver al modo guiado.
                         </p>
+                        <div className="mt-4 inline-flex rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#6EE7B7]">
+                          {getTrainingModeLabel(trainingMode)}
+                        </div>
                       </div>
                       <div className="rounded-[1.6rem] border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-4 py-3 text-right">
                         <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#6EE7B7]">Ejercicios</p>
@@ -596,7 +620,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
                       <SessionStatTile
                         label="Corporal"
                         value={String(sessionSummary.bodyweightLogs)}
-                        detail="Bloques usando peso corporal"
+                        detail={bodyweightOnlyMode ? 'Bloques sin equipo' : 'Bloques usando peso corporal'}
                       />
                     </div>
 
@@ -625,6 +649,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
                         expanded={expandedLogs[log.id] ?? false}
                         onToggleExpand={() => setExpandedLogs((current) => ({ ...current, [log.id]: !current[log.id] }))}
                         onToggleBodyweight={(checked) => toggleDraftLogBodyweight(log.id, checked)}
+                        bodyweightOnlyMode={bodyweightOnlyMode}
                         onRemoveLog={() => removeDraftLog(log.id)}
                         onDuplicateLog={() => duplicateDraftLog(log.id)}
                         onAddSet={() => addSetToDraftLog(log.id)}

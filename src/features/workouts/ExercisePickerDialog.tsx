@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,9 @@ import { ExerciseIcon } from '@/components/ExerciseIcon';
 import { MuscleHighlight } from '@/components/MuscleHighlight';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { formatMuscleGroup } from '@/lib/display';
+import { getMovementModeLabel, isHomeNoEquipmentMode } from '@/lib/trainingMode';
 import { cn } from '@/lib/utils';
+import { useStore } from '@/store';
 import type { ExerciseDefinition, MuscleGroup } from '@/store/types';
 
 interface ExercisePickerDialogProps {
@@ -34,6 +36,8 @@ export function ExercisePickerDialog({
   onCreateCustomExercise,
 }: ExercisePickerDialogProps) {
   const { exercises, isLoading } = useExerciseCatalog();
+  const trainingMode = useStore((state) => state.settings.trainingMode);
+  const bodyweightOnlyMode = isHomeNoEquipmentMode(trainingMode);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('all');
   const [equipmentFilter, setEquipmentFilter] = useState<'all' | 'bodyweight' | 'weighted'>('all');
@@ -41,9 +45,16 @@ export function ExercisePickerDialog({
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customMuscle, setCustomMuscle] = useState<MuscleGroup>('chest');
-  const [customBodyweight, setCustomBodyweight] = useState(false);
+  const [customBodyweight, setCustomBodyweight] = useState(bodyweightOnlyMode);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(searchQuery);
+
+  useEffect(() => {
+    if (bodyweightOnlyMode) {
+      setCustomBodyweight(true);
+      setEquipmentFilter('bodyweight');
+    }
+  }, [bodyweightOnlyMode]);
 
   const filteredExercises = useMemo(() => {
     const normalizedSearch = deferredSearch.trim().toLowerCase();
@@ -51,6 +62,10 @@ export function ExercisePickerDialog({
     return exercises
       .filter((exercise) => (activeFilter === 'all' ? true : exercise.muscleGroup === activeFilter))
       .filter((exercise) => {
+        if (bodyweightOnlyMode) {
+          return true;
+        }
+
         if (equipmentFilter === 'bodyweight') return exercise.isBodyweight;
         if (equipmentFilter === 'weighted') return !exercise.isBodyweight;
         return true;
@@ -71,12 +86,12 @@ export function ExercisePickerDialog({
         );
       })
       .slice(0, 80);
-  }, [activeFilter, equipmentFilter, mechanicFilter, deferredSearch, exercises]);
+  }, [activeFilter, bodyweightOnlyMode, deferredSearch, equipmentFilter, exercises, mechanicFilter]);
 
   const resetCustomForm = () => {
     setCustomName('');
     setCustomMuscle('chest');
-    setCustomBodyweight(false);
+    setCustomBodyweight(bodyweightOnlyMode);
     setShowCustomForm(false);
   };
 
@@ -93,7 +108,7 @@ export function ExercisePickerDialog({
                 {showCustomForm ? 'Crear ejercicio' : 'Añadir ejercicio'}
               </DialogTitle>
               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-                {showCustomForm ? 'Se guardará en tu biblioteca' : 'Catálogo compartido'}
+                {showCustomForm ? 'Se guardará en tu biblioteca' : bodyweightOnlyMode ? 'Biblioteca sin equipo' : 'Catálogo compartido'}
               </p>
             </div>
 
@@ -114,7 +129,7 @@ export function ExercisePickerDialog({
               <Input
                 value={customName}
                 onChange={(event) => setCustomName(event.target.value)}
-                placeholder="Ej: Press inclinado"
+                placeholder={bodyweightOnlyMode ? 'Ej: Sentadilla sumo' : 'Ej: Press inclinado'}
                 className="h-16 rounded-[1.75rem] border-none bg-[#1A202C] px-6 text-lg font-black text-white"
               />
             </div>
@@ -140,18 +155,24 @@ export function ExercisePickerDialog({
               </div>
             </div>
 
-            <button
-              type="button"
-              className={cn(
-                'rounded-[1.5rem] border px-4 py-4 text-sm font-bold uppercase tracking-[0.2em] transition-all',
-                customBodyweight
-                  ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
-                  : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/10 hover:text-zinc-200',
-              )}
-              onClick={() => setCustomBodyweight((current) => !current)}
-            >
-              {customBodyweight ? 'Ejercicio corporal' : 'Ejercicio con peso'}
-            </button>
+            {bodyweightOnlyMode ? (
+              <div className="rounded-[1.5rem] border border-[#6EE7B7] bg-[#6EE7B7]/10 px-4 py-4 text-sm font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">
+                Ejercicio sin equipo
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={cn(
+                  'rounded-[1.5rem] border px-4 py-4 text-sm font-bold uppercase tracking-[0.2em] transition-all',
+                  customBodyweight
+                    ? 'border-[#6EE7B7] bg-[#6EE7B7]/10 text-[#6EE7B7]'
+                    : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/10 hover:text-zinc-200',
+                )}
+                onClick={() => setCustomBodyweight((current) => !current)}
+              >
+                {customBodyweight ? 'Ejercicio corporal' : 'Ejercicio con peso'}
+              </button>
+            )}
 
             <div className="mt-auto grid gap-3 md:grid-cols-2">
               <Button
@@ -169,7 +190,7 @@ export function ExercisePickerDialog({
                     id: `custom-${customName.trim().toLowerCase().replace(/\s+/g, '-')}`,
                     name: customName.trim(),
                     muscleGroup: customMuscle,
-                    isBodyweight: customBodyweight,
+                    isBodyweight: bodyweightOnlyMode ? true : customBodyweight,
                     mechanic: null,
                   });
                   resetCustomForm();
@@ -213,24 +234,25 @@ export function ExercisePickerDialog({
                 </div>
                 
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                  <div className="flex gap-2 border-r border-white/10 pr-3 mr-1">
-                    {(['all', 'bodyweight', 'weighted'] as const).map((filter) => (
-                      <button
-                        key={`eq-${filter}`}
-                        type="button"
-                        className={cn(
-                          'shrink-0 rounded-xl px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] transition-all',
-                          equipmentFilter === filter
-                            ? 'bg-white/10 text-white'
-                            : 'bg-transparent text-zinc-500 hover:text-zinc-300',
-                        )}
-                        onClick={() => setEquipmentFilter(filter)}
-                      >
-                        {filter === 'all' ? 'Equipo' : filter === 'bodyweight' ? 'Corporal' : 'Pesas'}
-                      </button>
-                    ))}
-                  </div>
-
+                  {!bodyweightOnlyMode ? (
+                    <div className="mr-1 flex gap-2 border-r border-white/10 pr-3">
+                      {(['all', 'bodyweight', 'weighted'] as const).map((filter) => (
+                        <button
+                          key={`eq-${filter}`}
+                          type="button"
+                          className={cn(
+                            'shrink-0 rounded-xl px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] transition-all',
+                            equipmentFilter === filter
+                              ? 'bg-white/10 text-white'
+                              : 'bg-transparent text-zinc-500 hover:text-zinc-300',
+                          )}
+                          onClick={() => setEquipmentFilter(filter)}
+                        >
+                          {filter === 'all' ? 'Equipo' : filter === 'bodyweight' ? 'Corporal' : 'Pesas'}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="flex gap-2">
                     {(['all', 'compound', 'isolation'] as const).map((filter) => (
                       <button
@@ -286,7 +308,7 @@ export function ExercisePickerDialog({
                             <div className="min-w-0">
                               <p className="truncate text-base font-black text-white">{exercise.name}</p>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                                {formatMuscleGroup(exercise.muscleGroup)} • {exercise.isBodyweight ? 'Peso corporal' : 'Con peso'}
+                                {formatMuscleGroup(exercise.muscleGroup)} • {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
                               </p>
                             </div>
                           </div>
