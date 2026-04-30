@@ -20,6 +20,7 @@ interface GuidedTimedStep {
   title: string;
   subtitle: string;
   detail: string;
+  cues: string[];
   durationSeconds: number;
   tone: GuidedStepTone;
 }
@@ -176,6 +177,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Marcha activa',
           subtitle: 'Eleva rodillas y mueve brazos con ritmo.',
           detail: 'Busca ritmo y respiracion estable antes de cargar las piernas.',
+          cues: [
+            'Eleva una rodilla a la vez sin encoger los hombros.',
+            'Balancea los brazos con el mismo ritmo de las piernas.',
+            'Mantén el abdomen suave pero activo mientras respiras.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -183,6 +189,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Movilidad de cadera',
           subtitle: 'Sentadilla parcial y apertura controlada.',
           detail: 'Abre rango sin forzar y prepara tobillos, caderas y rodillas.',
+          cues: [
+            'Baja solo hasta donde mantengas los talones apoyados.',
+            'Abre las rodillas siguiendo la linea de los pies.',
+            'Sube lento y vuelve a repetir sin rebote.',
+          ],
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -190,6 +201,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Bisagra y puente',
           subtitle: 'Activa gluteos y cadena posterior.',
           detail: 'Piensa en tension controlada, no en velocidad.',
+          cues: [
+            'Empuja la cadera hacia atras antes de inclinar el torso.',
+            'Aprieta gluteos arriba durante un segundo.',
+            'Mantén el cuello largo y la espalda neutra.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -198,6 +214,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Prepara el primer bloque',
         subtitle: 'Respira y coloca tu postura.',
         detail: 'En un minuto empieza la parte principal.',
+        cues: [
+          'Suelta tension de hombros y mandibula.',
+          'Toma aire por nariz y exhala largo.',
+          'Repasa mentalmente la tecnica del primer ejercicio.',
+        ],
         durationSeconds: 60,
         tone: 'amber',
       },
@@ -206,6 +227,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Descarga de gluteos',
           subtitle: 'Cruza una pierna y abre la cadera con suavidad.',
           detail: 'Mantén respiraciones largas y deja que baje el pulso.',
+          cues: [
+            'Cruza el tobillo sobre la rodilla contraria.',
+            'Mantén la espalda larga sin encorvarte.',
+            'Respira lento y evita forzar el estiramiento.',
+          ],
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -213,6 +239,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Isquios y tobillos',
           subtitle: 'Flexion suave y movilidad final.',
           detail: 'Busca alivio, no profundidad extrema.',
+          cues: [
+            'Flexiona un poco las rodillas para quitar tension lumbar.',
+            'Inclina el torso solo hasta sentir un tiron suave.',
+            'Mueve tobillos y pies mientras bajas pulsaciones.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -227,6 +258,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Respiracion y brace',
           subtitle: 'Activa el abdomen antes de mover.',
           detail: 'Inhala profundo, exhala largo y crea tension ligera en el centro.',
+          cues: [
+            'Llena costillas y abdomen con aire.',
+            'Exhala despacio como si empanaras un vidrio.',
+            'Siente el abdomen firme sin apretar el cuello.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -234,6 +270,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Movilidad de columna',
           subtitle: 'Gato-vaca y rotacion suave.',
           detail: 'Segmenta la espalda sin forzar el cuello.',
+          cues: [
+            'Redondea y extiende la espalda vertebra por vertebra.',
+            'Mantén manos y rodillas bien apoyadas.',
+            'El movimiento debe verse fluido, no brusco.',
+          ],
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -241,6 +282,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Activacion anti-extension',
           subtitle: 'Prepara pelvis y costillas.',
           detail: 'Piensa en estabilidad antes que en velocidad.',
+          cues: [
+            'Lleva costillas hacia abajo con suavidad.',
+            'Mantén la pelvis neutra mientras respiras.',
+            'Activa el centro como si fueras a recibir un golpe suave.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -249,6 +295,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Centro listo',
         subtitle: 'Empieza el bloque principal en breve.',
         detail: 'Mantén abdomen activo y hombros relajados.',
+        cues: [
+          'Suelta la respiracion y vuelve a bracear.',
+          'Acomoda manos, apoyo y rango antes de empezar.',
+          'Piensa en control, no en velocidad.',
+        ],
         durationSeconds: 60,
         tone: 'amber',
       },
@@ -257,6 +308,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Rotacion suave',
           subtitle: 'Afloja el tronco y libera tension.',
           detail: 'Respira profundo mientras la zona media baja revoluciones.',
+          cues: [
+            'Deja caer las rodillas o gira el tronco sin dolor.',
+            'Mantén hombros relajados y cuello largo.',
+            'Haz la exhalacion mas larga que la inhalacion.',
+          ],
           durationSeconds: 60,
           tone: 'blue',
         },
@@ -264,6 +320,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
           title: 'Postura del nino',
           subtitle: 'Alarga espalda y caja toracica.',
           detail: 'Quédate quieto y termina largo.',
+          cues: [
+            'Lleva gluteos hacia talones sin colapsar hombros.',
+            'Estira brazos al frente o a los lados.',
+            'Respira hacia la espalda baja y costillas.',
+          ],
           durationSeconds: 60,
           tone: 'mint',
         },
@@ -277,6 +338,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Circulos de brazos',
         subtitle: 'Abre hombros y pecho antes de empujar.',
         detail: 'Hazlos amplios y fluidos.',
+        cues: [
+          'Traza circulos amplios hacia delante y hacia atras.',
+          'Mantén el pecho abierto y hombros lejos de las orejas.',
+          'Empieza pequeño y aumenta el rango poco a poco.',
+        ],
         durationSeconds: 60,
         tone: 'mint',
       },
@@ -284,6 +350,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Activacion escapular',
         subtitle: 'Protrae y retrae con control.',
         detail: 'Piensa en preparar hombros, pecho y espalda alta.',
+        cues: [
+          'Empuja el suelo o junta escapulas sin doblar codos de mas.',
+          'Siente movimiento en hombros, no solo en manos.',
+          'Haz cada repeticion lenta y bien controlada.',
+        ],
         durationSeconds: 60,
         tone: 'blue',
       },
@@ -291,6 +362,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Serie tecnica',
         subtitle: 'Ensaya el patron principal sin prisa.',
         detail: 'Prepara articulaciones y ritmo antes del bloque duro.',
+        cues: [
+          'Haz repeticiones suaves del patron que viene despues.',
+          'Usa menos rango si aun te sientes tieso.',
+          'Enfocate en postura y respiracion, no en cansarte.',
+        ],
         durationSeconds: 60,
         tone: 'mint',
       },
@@ -299,6 +375,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
       title: 'Ajusta respiracion',
       subtitle: 'En breve inicia el ejercicio principal.',
       detail: 'Sacude brazos y entra al primer bloque con control.',
+      cues: [
+        'Afloja munecas, hombros y cuello.',
+        'Respira largo y acomoda la postura de salida.',
+        'Visualiza la primera serie antes de empezar.',
+      ],
       durationSeconds: 60,
       tone: 'amber',
     },
@@ -307,6 +388,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Apertura de pecho',
         subtitle: 'Descomprime hombros y parte frontal del torso.',
         detail: 'Mantén claviculas abiertas y baja la respiracion.',
+        cues: [
+          'Entrelaza manos o abre brazos detras del cuerpo con suavidad.',
+          'Eleva esternon sin arquear la zona lumbar.',
+          'Sostén la postura mientras exhalas lento.',
+        ],
         durationSeconds: 60,
         tone: 'blue',
       },
@@ -314,6 +400,11 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         title: 'Espalda alta',
         subtitle: 'Abraza el frente y redondea suave.',
         detail: 'Suelta cuello y termina largo.',
+        cues: [
+          'Abraza hombros o estira brazos al frente.',
+          'Separa escapulas redondeando la parte alta de la espalda.',
+          'Deja que la respiracion vaya bajando el pulso.',
+        ],
         durationSeconds: 60,
         tone: 'mint',
       },
@@ -510,6 +601,11 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
         title: 'Descanso guiado',
         subtitle: 'Respira, suelta tension y prepara la siguiente serie.',
         detail: `Siguiente: ${mainSteps[index + 1]?.title ?? 'siguiente bloque'}`,
+        cues: [
+          'Camina un poco o sacude brazos y piernas.',
+          'Respira por nariz y alarga la exhalacion.',
+          'Repasa la tecnica de la siguiente serie.',
+        ],
         durationSeconds: draftSession.restDurationSeconds || DEFAULT_REST_DURATION_SECONDS,
         tone: 'amber',
       });

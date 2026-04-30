@@ -5,6 +5,12 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  applyFoodPresetToEntry,
+  getFoodPresetById,
+  getSuggestedServingChips,
+  searchFoodPresets,
+} from '@/lib/foodCatalog';
 import { createId } from '@/lib/workout';
 import { cn } from '@/lib/utils';
 import type { FoodEntry, RecoveryCheckIn, SleepLog } from '@/store';
@@ -48,6 +54,19 @@ interface ScoreFieldProps {
   value: number;
   onChange: (value: number) => void;
   positive?: boolean;
+}
+
+function createEmptyFoodDraft(dayKey: string): FoodEntry {
+  return {
+    id: createId('food'),
+    dayKey,
+    consumedAt: new Date().toISOString(),
+    name: '',
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+  };
 }
 
 function SliderField({ label, value, min, max, step, suffix = '', onChange }: SliderFieldProps) {
@@ -119,29 +138,24 @@ function ScoreField({ label, value, onChange, positive = false }: ScoreFieldProp
 }
 
 export function FoodEntryDialog({ open, dayKey, entry, onOpenChange, onSave }: FoodEntryDialogProps) {
-  const [draft, setDraft] = useState<FoodEntry>({
-    id: createId('food'),
-    dayKey,
-    consumedAt: new Date().toISOString(),
-    name: '',
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-  });
+  const [draft, setDraft] = useState<FoodEntry>(createEmptyFoodDraft(dayKey));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [servings, setServings] = useState(1);
+
+  const suggestions = useMemo(
+    () => searchFoodPresets(searchQuery),
+    [searchQuery],
+  );
+  const selectedPreset = selectedPresetId ? getFoodPresetById(selectedPresetId) : null;
 
   useEffect(() => {
     if (open) {
-      setDraft(entry ?? {
-        id: createId('food'),
-        dayKey,
-        consumedAt: new Date().toISOString(),
-        name: '',
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-      });
+      const nextDraft = entry ?? createEmptyFoodDraft(dayKey);
+      setDraft(nextDraft);
+      setSearchQuery(nextDraft.name);
+      setSelectedPresetId(null);
+      setServings(1);
     }
   }, [dayKey, entry, open]);
 
@@ -154,13 +168,132 @@ export function FoodEntryDialog({ open, dayKey, entry, onOpenChange, onSave }: F
             <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
               {entry ? 'Editar comida' : 'Registrar comida'}
             </h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Busca un plato o alimento comun y usa una porcion base. Ejemplo: mangu con salami, arroz, habichuelas o pollo guisado.
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre</Label>
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Buscar plato o alimento</Label>
+            <Input
+              value={searchQuery}
+              placeholder="Ej. mangú con salami, arroz o huevo"
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setSelectedPresetId(null);
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
+              className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Sugerencias rápidas</Label>
+              {selectedPreset ? (
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">
+                  {selectedPreset.servingLabel}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+              {suggestions.map((preset) => {
+                const isActive = selectedPresetId === preset.id;
+
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPresetId(preset.id);
+                      setServings(1);
+                      setSearchQuery(preset.name);
+                      setDraft((current) => applyFoodPresetToEntry(current, preset, 1));
+                    }}
+                    className={cn(
+                      'w-full rounded-[1.6rem] border px-4 py-4 text-left transition-all',
+                      isActive
+                        ? 'border-transparent bg-[#6EE7B7]/12'
+                        : 'border-white/8 bg-[#0b1320] hover:border-white/15',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-black text-white">{preset.name}</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
+                          {preset.servingLabel}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-white">{preset.calories} kcal</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+                          P {preset.protein} · C {preset.carbs} · G {preset.fat}
+                        </p>
+                      </div>
+                    </div>
+                    {preset.notes ? (
+                      <p className="mt-3 text-xs leading-relaxed text-zinc-400">{preset.notes}</p>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedPreset ? (
+            <div className="space-y-3 rounded-[1.8rem] border border-[#6EE7B7]/16 bg-[#6EE7B7]/8 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#6EE7B7]">Porción</p>
+                  <p className="mt-1 text-sm font-black text-white">{selectedPreset.servingLabel}</p>
+                </div>
+                <Input
+                  type="number"
+                  min={0.5}
+                  max={3}
+                  step={0.5}
+                  value={servings}
+                  onChange={(event) => {
+                    const nextServings = Math.max(0.5, Math.min(3, Number(event.target.value) || 1));
+                    setServings(nextServings);
+                    setDraft((current) => applyFoodPresetToEntry(current, selectedPreset, nextServings));
+                  }}
+                  className="h-12 w-24 rounded-[1.2rem] border-none bg-[#0b1320] px-3 text-center text-lg font-black text-white"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {getSuggestedServingChips().map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => {
+                      setServings(chip);
+                      setDraft((current) => applyFoodPresetToEntry(current, selectedPreset, chip));
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] transition-all',
+                      servings === chip
+                        ? 'border-transparent bg-[#6EE7B7] text-[#08111C]'
+                        : 'border-white/8 bg-[#0b1320] text-zinc-400 hover:text-white',
+                    )}
+                  >
+                    {chip}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre a guardar</Label>
             <Input
               value={draft.name}
-              onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+              onChange={(event) => {
+                setSelectedPresetId(null);
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
               className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
             />
           </div>

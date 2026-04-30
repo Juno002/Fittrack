@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, ArrowRight, CheckCircle, Timer as TimerIcon } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle, Pause, Play, SkipForward, Timer as TimerIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ExerciseIcon } from '@/components/ExerciseIcon';
@@ -46,48 +46,40 @@ export function WorkoutFocusView({
   const [remainingSeconds, setRemainingSeconds] = useState(
     currentStep && currentStep.kind !== 'main' ? currentStep.durationSeconds : 0,
   );
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     if (!currentStep || currentStep.kind === 'main') {
       setRemainingSeconds(0);
+      setIsPaused(false);
       return;
     }
 
     setRemainingSeconds(currentStep.durationSeconds);
+    setIsPaused(false);
   }, [currentStep]);
 
   useEffect(() => {
-    if (!currentStep || currentStep.kind === 'main') {
+    if (!currentStep || currentStep.kind === 'main' || isPaused || remainingSeconds <= 0) {
       return;
     }
 
-    const startedAt = Date.now();
-    const durationMs = currentStep.durationSeconds * 1000;
-    let hasAdvanced = false;
-
-    const tick = () => {
-      if (hasAdvanced) {
-        return;
-      }
-
-      const elapsedMs = Date.now() - startedAt;
-      const nextRemaining = Math.max(0, Math.ceil((durationMs - elapsedMs) / 1000));
-
-      setRemainingSeconds(nextRemaining);
-
-      if (elapsedMs >= durationMs) {
-        hasAdvanced = true;
-        onAdvanceGuidedStep();
-      }
-    };
-
-    tick();
-    const interval = window.setInterval(tick, 250);
+    const timeout = window.setTimeout(() => {
+      setRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearTimeout(timeout);
     };
-  }, [currentStep, onAdvanceGuidedStep]);
+  }, [currentStep, isPaused, onAdvanceGuidedStep, remainingSeconds]);
+
+  useEffect(() => {
+    if (!currentStep || currentStep.kind === 'main' || remainingSeconds > 0) {
+      return;
+    }
+
+    onAdvanceGuidedStep();
+  }, [currentStep, onAdvanceGuidedStep, remainingSeconds]);
 
   useEffect(() => {
     if (!currentStep || currentStep.kind !== 'main') {
@@ -201,6 +193,7 @@ export function WorkoutFocusView({
             ? 'Enfriamiento'
             : 'Calentamiento'
       : 'Fin del bloque';
+    const pauseLabel = isPaused ? 'Continuar' : 'Pausar';
 
     return (
       <motion.div
@@ -264,13 +257,22 @@ export function WorkoutFocusView({
             transition={{ delay: 0.2 }}
             className="w-full max-w-sm rounded-[2.6rem] border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl"
           >
-            <p className={cn('mb-3 text-[10px] font-black uppercase tracking-[0.25em]', toneClass)}>
-              Paso automático
-            </p>
             <h2 className="text-2xl font-black tracking-tight text-white">{currentStep.title}</h2>
             <p className="mt-3 text-sm leading-relaxed text-zinc-300">{currentStep.subtitle}</p>
             <p className="mt-4 text-xs leading-relaxed text-zinc-500">{currentStep.detail}</p>
           </motion.div>
+
+          <div className="mt-4 w-full max-w-sm rounded-[1.9rem] border border-white/8 bg-[#0b1320]/88 px-4 py-4 text-left">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Como hacerlo</p>
+            <div className="mt-3 space-y-2">
+              {currentStep.cues.map((cue) => (
+                <div key={cue} className="flex items-start gap-3">
+                  <span className={cn('mt-1 size-2 shrink-0 rounded-full', currentStep.kind === 'cooldown' ? 'bg-[#7AB9FF]' : currentStep.kind === 'rest' ? 'bg-[#F9B06E]' : 'bg-[#6EE7B7]')} />
+                  <p className="text-sm leading-relaxed text-zinc-300">{cue}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-4 w-full max-w-sm rounded-[1.9rem] border border-white/8 bg-[#0b1320]/88 px-4 py-4 text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Siguiente</p>
@@ -279,12 +281,29 @@ export function WorkoutFocusView({
               <ArrowRight className="size-4 text-zinc-500" />
             </div>
           </div>
-        </div>
 
-        <div className="w-full max-w-xs pb-12 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-600">
-            La pantalla avanzará sola
-          </p>
+          <div className="mt-4 flex w-full max-w-sm gap-3">
+            <Button
+              variant="outline"
+              className="h-14 flex-1 rounded-[1.6rem] border-white/10 bg-[#0b1320] text-[10px] font-black uppercase tracking-[0.22em] text-white hover:bg-white/5 hover:text-white"
+              onClick={() => setIsPaused((current) => !current)}
+            >
+              {isPaused ? <Play className="mr-2 size-4" /> : <Pause className="mr-2 size-4" />}
+              {pauseLabel}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 flex-1 rounded-[1.6rem] border-white/10 bg-[#0b1320] text-[10px] font-black uppercase tracking-[0.22em] text-white hover:bg-white/5 hover:text-white"
+              onClick={() => {
+                setIsPaused(false);
+                onClearStoredRest();
+                onAdvanceGuidedStep();
+              }}
+            >
+              <SkipForward className="mr-2 size-4" />
+              Saltar
+            </Button>
+          </div>
         </div>
       </motion.div>
     );
