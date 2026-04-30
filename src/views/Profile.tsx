@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { BellRing, CalendarDays, ChevronLeft, Download, ScanHeart, Target, Upload } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -16,6 +16,11 @@ import {
   getDisplayWeight,
   getStorageWeight,
 } from '@/lib/units';
+import {
+  getWeightRange,
+  hasProfileFieldErrors,
+  validateProfileFields,
+} from '@/lib/profileValidation';
 import { migratePersistedState, useStore, type AppStoreData } from '@/store';
 import type {
   AppSettings,
@@ -82,6 +87,7 @@ export function Profile({ onBack }: ProfileProps) {
   const [pendingImportData, setPendingImportData] = useState<AppStoreData | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFeedback, setImportFeedback] = useState<{ tone: 'good' | 'danger'; message: string } | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     setProfileDraft(data.profile);
@@ -90,6 +96,20 @@ export function Profile({ onBack }: ProfileProps) {
     setMacroDraft(data.macrosGoal);
     setDisplayWeightDraft(getDisplayWeight(data.profile.weight, data.settings.unitSystem));
   }, [data]);
+
+  useEffect(() => {
+    if (!isSaved) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsSaved(false);
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isSaved]);
 
   const activeSignalsCount = Object.values(settingsDraft.connectedSignals).filter(Boolean).length;
   const scheduleDaysLabel = settingsDraft.trainingSchedule.days.length > 0
@@ -101,8 +121,21 @@ export function Profile({ onBack }: ProfileProps) {
     getStorageWeight(displayWeightDraft, settingsDraft.unitSystem),
     profileDraft.height,
   );
+  const profileFieldErrors = useMemo(
+    () => validateProfileFields(profileDraft, displayWeightDraft, settingsDraft.unitSystem),
+    [displayWeightDraft, profileDraft, settingsDraft.unitSystem],
+  );
+  const weightRange = useMemo(
+    () => getWeightRange(settingsDraft.unitSystem),
+    [settingsDraft.unitSystem],
+  );
+  const hasInvalidProfileFields = hasProfileFieldErrors(profileFieldErrors);
 
   const handleSave = () => {
+    if (hasInvalidProfileFields) {
+      return;
+    }
+
     const finalWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
     updateProfile({ ...profileDraft, name: profileDraft.name.trim(), weight: finalWeightKg });
     updateSettings(settingsDraft);
@@ -111,6 +144,7 @@ export function Profile({ onBack }: ProfileProps) {
     }
     setCalorieGoal(calorieDraft);
     setMacrosGoal(macroDraft);
+    setIsSaved(true);
   };
 
   const handleExportData = () => {
@@ -199,7 +233,7 @@ export function Profile({ onBack }: ProfileProps) {
   };
 
   return (
-    <div className="app-screen flex h-[100dvh] flex-col overflow-hidden text-white">
+    <div className="app-screen relative flex h-full flex-col overflow-hidden text-white">
       <header className="px-6 pt-10 pb-4">
         <div className="flex items-center gap-3">
           <button
@@ -268,11 +302,18 @@ export function Profile({ onBack }: ProfileProps) {
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Edad</Label>
               <Input
                 type="number"
+                min={10}
+                max={100}
+                step={1}
                 aria-label="Edad"
+                aria-invalid={profileFieldErrors.age ? true : undefined}
                 value={profileDraft.age}
                 onChange={(event) => setProfileDraft((current) => ({ ...current, age: Number(event.target.value) }))}
                 className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
               />
+              {profileFieldErrors.age ? (
+                <p className="text-xs text-[#F9B06E]">{profileFieldErrors.age}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Género</Label>
@@ -313,19 +354,33 @@ export function Profile({ onBack }: ProfileProps) {
               </div>
               <Input
                 type="number"
+                min={weightRange.min}
+                max={weightRange.max}
+                step={1}
+                aria-invalid={profileFieldErrors.weight ? true : undefined}
                 value={displayWeightDraft}
                 onChange={(event) => setDisplayWeightDraft(Number(event.target.value))}
                 className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
               />
+              {profileFieldErrors.weight ? (
+                <p className="text-xs text-[#F9B06E]">{profileFieldErrors.weight}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Altura (cm)</Label>
               <Input
                 type="number"
+                min={100}
+                max={250}
+                step={1}
+                aria-invalid={profileFieldErrors.height ? true : undefined}
                 value={profileDraft.height}
                 onChange={(event) => setProfileDraft((current) => ({ ...current, height: Number(event.target.value) }))}
                 className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
               />
+              {profileFieldErrors.height ? (
+                <p className="text-xs text-[#F9B06E]">{profileFieldErrors.height}</p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -394,6 +449,8 @@ export function Profile({ onBack }: ProfileProps) {
               <button
                 key={key}
                 type="button"
+                role="switch"
+                aria-checked={settingsDraft.connectedSignals[key]}
                 onClick={() => toggleSignal(key)}
                 className={`flex items-center justify-between rounded-[1.7rem] border px-4 py-4 text-left transition-all ${
                   settingsDraft.connectedSignals[key]
@@ -430,6 +487,8 @@ export function Profile({ onBack }: ProfileProps) {
                 <button
                   key={day}
                   type="button"
+                  role="checkbox"
+                  aria-checked={isActive}
                   onClick={() => toggleTrainingDay(day)}
                   className={`h-12 rounded-[1.25rem] border text-[10px] font-black uppercase tracking-[0.25em] transition-all ${
                     isActive
@@ -482,6 +541,8 @@ export function Profile({ onBack }: ProfileProps) {
             </div>
             <button
               type="button"
+              role="switch"
+              aria-checked={settingsDraft.reminders.enabled}
               onClick={() => setSettingsDraft((current) => ({
                 ...current,
                 reminders: { ...current.reminders, enabled: !current.reminders.enabled },
@@ -555,12 +616,13 @@ export function Profile({ onBack }: ProfileProps) {
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md px-4 pb-6">
+      <div className="pointer-events-none absolute inset-x-0 bottom-24 mx-auto w-full max-w-md px-4 pb-6">
         <Button
-          className="h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
+          disabled={hasInvalidProfileFields}
+          className="pointer-events-auto h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
           onClick={handleSave}
         >
-          Guardar cambios
+          <span aria-live="polite">{isSaved ? 'Guardado ✓' : 'Guardar cambios'}</span>
         </Button>
       </div>
 

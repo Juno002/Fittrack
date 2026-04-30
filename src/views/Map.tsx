@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import { ArrowRight, Settings2, ShieldAlert, Sparkles } from 'lucide-react';
 
+import { HeaderActionButton } from '@/components/HeaderActionButton';
 import { MuscleMap } from '@/components/MuscleMap';
 import { Button } from '@/components/ui/button';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
@@ -13,9 +14,10 @@ import type { MuscleGroup } from '@/store/types';
 
 interface MapProps {
   onOpenWorkout: () => void;
+  onOpenProfile: () => void;
 }
 
-export function Map({ onOpenWorkout }: MapProps) {
+export function Map({ onOpenWorkout, onOpenProfile }: MapProps) {
   const data = useStoreData();
   const { exercises } = useExerciseCatalog();
   const startDraftSession = useStore((state) => state.startDraftSession);
@@ -38,11 +40,19 @@ export function Map({ onOpenWorkout }: MapProps) {
   return (
     <div className="app-screen flex h-full flex-col overflow-hidden">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Mapa de recuperación</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Mapa corporal</h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          {mapFocus.body}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Mapa de recuperacion</p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Mapa corporal</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              {mapFocus.body}
+            </p>
+          </div>
+
+          <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
+            <Settings2 className="size-5" />
+          </HeaderActionButton>
+        </div>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-32">
@@ -109,7 +119,14 @@ export function Map({ onOpenWorkout }: MapProps) {
                   </span>
                 </div>
 
-                <div className="mt-3 h-2 rounded-full bg-white/5">
+                <div
+                  role="progressbar"
+                  aria-label={`Fatiga ${formatMuscleGroup(muscleGroup)}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(value)}
+                  className="mt-3 h-2 rounded-full bg-white/5"
+                >
                   <div
                     className={`h-full rounded-full ${
                       !mapFocus.hasTrainingData

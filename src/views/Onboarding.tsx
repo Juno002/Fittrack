@@ -15,6 +15,11 @@ import {
   getDisplayWeight,
   getStorageWeight,
 } from '@/lib/units';
+import {
+  getWeightRange,
+  hasProfileFieldErrors,
+  validateProfileFields,
+} from '@/lib/profileValidation';
 import { useStore } from '@/store';
 import type {
   AppSettings,
@@ -55,12 +60,18 @@ export function Onboarding() {
   const [displayWeightDraft, setDisplayWeightDraft] = useState(
     getDisplayWeight(storeProfile.weight, storeSettings.unitSystem),
   );
+  const profileFieldErrors = useMemo(
+    () => validateProfileFields(profileDraft, displayWeightDraft, settingsDraft.unitSystem),
+    [displayWeightDraft, profileDraft, settingsDraft.unitSystem],
+  );
+  const weightRange = useMemo(
+    () => getWeightRange(settingsDraft.unitSystem),
+    [settingsDraft.unitSystem],
+  );
 
   const totalSteps = 6;
   const profileStepValid = profileDraft.name.trim().length > 0
-    && profileDraft.age > 0
-    && profileDraft.height > 0
-    && displayWeightDraft > 0;
+    && !hasProfileFieldErrors(profileFieldErrors);
 
   const progress = useMemo(
     () => `${Math.round((step / totalSteps) * 100)}%`,
@@ -125,6 +136,8 @@ export function Onboarding() {
     setDisplayWeightDraft(getDisplayWeight(rawWeightKg, unitSystem));
   };
 
+  const hasNoSignalsSelected = !Object.values(settingsDraft.connectedSignals).some(Boolean);
+
   return (
     <div className="fixed inset-0 z-[100] flex flex-col overflow-y-auto bg-[radial-gradient(circle_at_top,#173050_0%,#07101A_55%)] text-white">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 py-12">
@@ -184,19 +197,33 @@ export function Onboarding() {
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Edad</Label>
                     <Input
                       type="number"
+                      min={10}
+                      max={100}
+                      step={1}
+                      aria-invalid={profileFieldErrors.age ? true : undefined}
                       value={profileDraft.age}
                       onChange={(event) => setProfileDraft((current) => ({ ...current, age: Number(event.target.value) }))}
                       className="h-14 rounded-[1.5rem] border-none bg-white/6 px-4 text-lg font-black text-white"
                     />
+                    {profileFieldErrors.age ? (
+                      <p className="text-xs text-[#F9B06E]">{profileFieldErrors.age}</p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Peso ({settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'})</Label>
                     <Input
                       type="number"
+                      min={weightRange.min}
+                      max={weightRange.max}
+                      step={1}
+                      aria-invalid={profileFieldErrors.weight ? true : undefined}
                       value={displayWeightDraft}
                       onChange={(event) => setDisplayWeightDraft(Number(event.target.value))}
                       className="h-14 rounded-[1.5rem] border-none bg-white/6 px-4 text-lg font-black text-white"
                     />
+                    {profileFieldErrors.weight ? (
+                      <p className="text-xs text-[#F9B06E]">{profileFieldErrors.weight}</p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -205,10 +232,17 @@ export function Onboarding() {
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Altura (cm)</Label>
                     <Input
                       type="number"
+                      min={100}
+                      max={250}
+                      step={1}
+                      aria-invalid={profileFieldErrors.height ? true : undefined}
                       value={profileDraft.height}
                       onChange={(event) => setProfileDraft((current) => ({ ...current, height: Number(event.target.value) }))}
                       className="h-14 rounded-[1.5rem] border-none bg-white/6 px-4 text-lg font-black text-white"
                     />
+                    {profileFieldErrors.height ? (
+                      <p className="text-xs text-[#F9B06E]">{profileFieldErrors.height}</p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Unidades</Label>
@@ -289,6 +323,8 @@ export function Onboarding() {
                   <button
                     key={signal}
                     type="button"
+                    role="switch"
+                    aria-checked={settingsDraft.connectedSignals[signal]}
                     onClick={() => toggleSignal(signal)}
                     className={`w-full rounded-[2rem] border p-5 text-left transition-all ${
                       settingsDraft.connectedSignals[signal]
@@ -310,6 +346,12 @@ export function Onboarding() {
                   </button>
                 ))}
               </div>
+
+              {hasNoSignalsSelected ? (
+                <div className="rounded-[1.7rem] border border-white/8 bg-white/6 px-4 py-4 text-sm leading-relaxed text-zinc-300">
+                  Sin senales activas, el sistema usara tu historial y registros basicos hasta que anadas mas contexto.
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -328,6 +370,8 @@ export function Onboarding() {
                     <button
                       key={day}
                       type="button"
+                      role="checkbox"
+                      aria-checked={isActive}
                       onClick={() => toggleDay(day)}
                       className={`h-12 rounded-[1.25rem] border text-[10px] font-black uppercase tracking-[0.25em] transition-all ${
                         isActive

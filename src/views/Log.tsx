@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { CalendarPlus2, Dumbbell, Moon, Pencil, Plus, ScanHeart, Trash2, Utensils } from 'lucide-react';
+import { useMemo, useState, type ComponentType } from 'react';
+import { CalendarPlus2, Dumbbell, Moon, Pencil, Plus, ScanHeart, Settings2, Trash2, Utensils } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { HeaderActionButton } from '@/components/HeaderActionButton';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { FoodEntryDialog, RecoveryDialog, SleepLogDialog } from '@/features/log/EntryDialogs';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatClockLabel, formatDayHeading, formatDuration } from '@/lib/display';
-import { createId } from '@/lib/workout';
 import { cn } from '@/lib/utils';
 import {
   useStore,
@@ -22,269 +21,7 @@ import { getRecentDayKeys } from '@/lib/dates';
 
 interface LogProps {
   onOpenWorkout: () => void;
-}
-
-interface FoodEntryDialogProps {
-  open: boolean;
-  dayKey: string;
-  entry: FoodEntry | null;
-  onOpenChange: (open: boolean) => void;
-  onSave: (entry: FoodEntry) => void;
-}
-
-function FoodEntryDialog({ open, dayKey, entry, onOpenChange, onSave }: FoodEntryDialogProps) {
-  const [draft, setDraft] = useState<FoodEntry>({
-    id: createId('food'),
-    dayKey,
-    consumedAt: new Date().toISOString(),
-    name: '',
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-  });
-
-  useEffect(() => {
-    if (open) {
-      setDraft(entry ?? {
-        id: createId('food'),
-        dayKey,
-        consumedAt: new Date().toISOString(),
-        name: '',
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-      });
-    }
-  }, [dayKey, entry, open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[2.5rem] border-white/6 bg-[#101827] p-6 text-white">
-        <div className="space-y-5">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Nutrición</p>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-              {entry ? 'Editar comida' : 'Registrar comida'}
-            </h2>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Nombre</Label>
-            <Input
-              value={draft.name}
-              onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-              className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ['calories', 'Calorías'],
-              ['protein', 'Proteína'],
-              ['carbs', 'Carbs'],
-              ['fat', 'Grasas'],
-            ] as Array<[keyof Pick<FoodEntry, 'calories' | 'protein' | 'carbs' | 'fat'>, string]>).map(([field, label]) => (
-              <div key={field} className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{label}</Label>
-                <Input
-                  type="number"
-                  value={draft[field]}
-                  onChange={(event) => setDraft((current) => ({ ...current, [field]: Number(event.target.value) }))}
-                  className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
-                />
-              </div>
-            ))}
-          </div>
-
-          <Button
-            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
-            disabled={!draft.name.trim()}
-            onClick={() => {
-              onSave({ ...draft, dayKey });
-              onOpenChange(false);
-            }}
-          >
-            Guardar comida
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface SleepLogDialogProps {
-  open: boolean;
-  dayKey: string;
-  entry: SleepLog | null;
-  onOpenChange: (open: boolean) => void;
-  onSave: (entry: SleepLog) => void;
-}
-
-function SleepLogDialog({ open, dayKey, entry, onOpenChange, onSave }: SleepLogDialogProps) {
-  const [draft, setDraft] = useState<SleepLog>({
-    id: createId('sleep'),
-    dayKey,
-    loggedAt: new Date().toISOString(),
-    durationHours: 8,
-    qualityScore: 80,
-  });
-
-  useEffect(() => {
-    if (open) {
-      setDraft(entry ?? {
-        id: createId('sleep'),
-        dayKey,
-        loggedAt: new Date().toISOString(),
-        durationHours: 8,
-        qualityScore: 80,
-      });
-    }
-  }, [dayKey, entry, open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[2.5rem] border-white/6 bg-[#101827] p-6 text-white">
-        <div className="space-y-5">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Descanso</p>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-              {entry ? 'Editar sueño' : 'Registrar sueño'}
-            </h2>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Duración (horas)</Label>
-            <Input
-              type="number"
-              value={draft.durationHours}
-              onChange={(event) => setDraft((current) => ({ ...current, durationHours: Number(event.target.value) }))}
-              className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calidad (0-100)</Label>
-            <Input
-              type="number"
-              value={draft.qualityScore}
-              onChange={(event) => setDraft((current) => ({ ...current, qualityScore: Number(event.target.value) }))}
-              className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
-            />
-          </div>
-
-          <Button
-            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
-            onClick={() => {
-              onSave({ ...draft, dayKey });
-              onOpenChange(false);
-            }}
-          >
-            Guardar sueño
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface RecoveryDialogProps {
-  open: boolean;
-  dayKey: string;
-  entry: RecoveryCheckIn | null;
-  onOpenChange: (open: boolean) => void;
-  onSave: (entry: RecoveryCheckIn) => void;
-}
-
-function RecoveryDialog({ open, dayKey, entry, onOpenChange, onSave }: RecoveryDialogProps) {
-  const [draft, setDraft] = useState<RecoveryCheckIn>({
-    id: createId('recovery'),
-    dayKey,
-    loggedAt: new Date().toISOString(),
-    soreness: 2,
-    energy: 4,
-    stress: 2,
-    notes: '',
-  });
-
-  useEffect(() => {
-    if (open) {
-      setDraft(entry ?? {
-        id: createId('recovery'),
-        dayKey,
-        loggedAt: new Date().toISOString(),
-        soreness: 2,
-        energy: 4,
-        stress: 2,
-        notes: '',
-      });
-    }
-  }, [dayKey, entry, open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[2.5rem] border-white/6 bg-[#101827] p-6 text-white">
-        <div className="space-y-5">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Log de recuperación</p>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-            {entry ? 'Editar quick log' : 'Nuevo quick log'}
-          </h2>
-        </div>
-
-          {([
-            ['soreness', 'Carga muscular'],
-            ['energy', 'Energía'],
-            ['stress', 'Estrés'],
-          ] as Array<[keyof Pick<RecoveryCheckIn, 'soreness' | 'energy' | 'stress'>, string]>).map(([field, label]) => (
-            <div key={field} className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">{label}</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {Array.from({ length: 5 }, (_, index) => {
-                  const value = index + 1;
-                  const isActive = draft[field] === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setDraft((current) => ({ ...current, [field]: value }))}
-                      className={`h-11 rounded-[1.2rem] border text-sm font-black transition-all ${
-                        isActive
-                          ? 'border-transparent bg-[#6EE7B7] text-[#08111C]'
-                          : 'border-white/8 bg-[#0b1320] text-zinc-500 hover:text-white'
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Notas</Label>
-            <Textarea
-              value={draft.notes}
-              onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-              className="min-h-24 rounded-[1.5rem] border-white/8 bg-[#0b1320] px-4 py-3 text-sm text-white placeholder:text-zinc-600"
-            />
-          </div>
-
-          <Button
-            className="h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
-            onClick={() => {
-              onSave({ ...draft, dayKey });
-              onOpenChange(false);
-            }}
-          >
-            Guardar quick log
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+  onOpenProfile: () => void;
 }
 
 function WorkoutTimelineCard({
@@ -406,7 +143,7 @@ function QuickActionCard({
   );
 }
 
-export function Log({ onOpenWorkout }: LogProps) {
+export function Log({ onOpenWorkout, onOpenProfile }: LogProps) {
   const storeData = useStoreData();
   const draftSession = useStore((state) => state.draftSession);
   const startDraftSession = useStore((state) => state.startDraftSession);
@@ -437,10 +174,16 @@ export function Log({ onOpenWorkout }: LogProps) {
   const [isFoodDialogOpen, setIsFoodDialogOpen] = useState(false);
   const [isSleepDialogOpen, setIsSleepDialogOpen] = useState(false);
   const [isRecoveryDialogOpen, setIsRecoveryDialogOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const daySummary = useMemo(() => selectDaySummary(storeData, selectedDayKey), [storeData, selectedDayKey]);
   const timelineEntries = useMemo(() => selectTimelineEntries(storeData, selectedDayKey), [storeData, selectedDayKey]);
-  const recentDayKeys = useMemo(() => getRecentDayKeys(7), []);
+  const recentDayKeys = useMemo(() => getRecentDayKeys(30), []);
   const todayDayKey = useMemo(() => selectTodayDayKey(), []);
 
   const handleStartWorkoutLog = () => {
@@ -468,14 +211,36 @@ export function Log({ onOpenWorkout }: LogProps) {
     setIsRecoveryDialogOpen(true);
   };
 
+  const openDeleteDialog = (
+    title: string,
+    description: string,
+    confirmLabel: string,
+    onConfirm: () => void,
+  ) => {
+    setPendingDelete({
+      title,
+      description,
+      confirmLabel,
+      onConfirm,
+    });
+  };
+
   return (
     <div className="app-screen flex h-full flex-col overflow-hidden">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Registro diario</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Log</h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          {selectedDayKey === todayDayKey ? 'Todo lo que hiciste hoy, con accesos rápidos para seguir sumando señales.' : formatDayHeading(selectedDayKey)}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Registro diario</p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Log</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              {selectedDayKey === todayDayKey ? 'Todo lo que hiciste hoy, con accesos rapidos para seguir sumando senales.' : formatDayHeading(selectedDayKey)}
+            </p>
+          </div>
+
+          <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
+            <Settings2 className="size-5" />
+          </HeaderActionButton>
+        </div>
       </header>
 
       <div className="flex gap-2 overflow-x-auto px-4 pb-4 no-scrollbar">
@@ -487,6 +252,7 @@ export function Log({ onOpenWorkout }: LogProps) {
             <button
               key={dayKey}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => setSelectedDayKey(dayKey)}
               className={cn(
                 'flex min-w-[72px] shrink-0 flex-col items-center rounded-[1.7rem] border px-3 py-4 transition-all',
@@ -635,7 +401,12 @@ export function Log({ onOpenWorkout }: LogProps) {
                         session={entry.session}
                         expanded={expandedSessions[entry.session.id] ?? false}
                         onToggle={() => setExpandedSessions((current) => ({ ...current, [entry.session.id]: !current[entry.session.id] }))}
-                        onDelete={() => deleteSession(entry.session.id)}
+                        onDelete={() => openDeleteDialog(
+                          'Eliminar sesion',
+                          `Se eliminara "${entry.session.name}" del historial y no podras recuperarla.`,
+                          'Eliminar sesion',
+                          () => deleteSession(entry.session.id),
+                        )}
                       />
                     </div>
                   );
@@ -672,7 +443,12 @@ export function Log({ onOpenWorkout }: LogProps) {
                             variant="ghost"
                             size="icon"
                             className="rounded-[1.2rem] text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
-                            onClick={() => deleteFoodEntry(entry.food.id)}
+                            onClick={() => openDeleteDialog(
+                              'Eliminar comida',
+                              `Se eliminara "${entry.food.name}" del registro del dia.`,
+                              'Eliminar comida',
+                              () => deleteFoodEntry(entry.food.id),
+                            )}
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -713,7 +489,12 @@ export function Log({ onOpenWorkout }: LogProps) {
                             variant="ghost"
                             size="icon"
                             className="rounded-[1.2rem] text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
-                            onClick={() => deleteSleepLog(entry.sleepLog.id)}
+                            onClick={() => openDeleteDialog(
+                              'Eliminar sueno',
+                              'Se eliminara este registro de sueno del dia seleccionado.',
+                              'Eliminar sueno',
+                              () => deleteSleepLog(entry.sleepLog.id),
+                            )}
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -756,7 +537,12 @@ export function Log({ onOpenWorkout }: LogProps) {
                           variant="ghost"
                           size="icon"
                           className="rounded-[1.2rem] text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
-                          onClick={() => deleteRecoveryCheckIn(entry.recoveryCheckIn.id)}
+                          onClick={() => openDeleteDialog(
+                            'Eliminar quick log',
+                            'Se eliminara este quick log y su contexto de recuperacion del dia.',
+                            'Eliminar quick log',
+                            () => deleteRecoveryCheckIn(entry.recoveryCheckIn.id),
+                          )}
                         >
                           <Trash2 className="size-4" />
                         </Button>
@@ -848,6 +634,22 @@ export function Log({ onOpenWorkout }: LogProps) {
         entry={recoveryDialogEntry}
         onOpenChange={setIsRecoveryDialogOpen}
         onSave={saveRecoveryCheckIn}
+      />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+          }
+        }}
+        title={pendingDelete?.title ?? 'Confirmar eliminacion'}
+        description={pendingDelete?.description ?? 'Esta accion no se puede deshacer.'}
+        confirmLabel={pendingDelete?.confirmLabel ?? 'Eliminar'}
+        tone="danger"
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          setPendingDelete(null);
+        }}
       />
     </div>
   );

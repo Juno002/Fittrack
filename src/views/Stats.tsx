@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { Moon, Sparkles, TrendingUp, Trophy } from 'lucide-react';
+import { Moon, Settings2, Sparkles, TrendingUp, Trophy } from 'lucide-react';
 
+import { HeaderActionButton } from '@/components/HeaderActionButton';
 import { HeatmapCalendar } from '@/components/HeatmapCalendar';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { useStoreData } from '@/hooks/useStoreData';
@@ -12,11 +13,10 @@ import {
   selectCurrentWeekLabel,
   selectMuscleGroupStats,
   selectPersonalRecords,
-  selectPreviousWeekVolume,
+  selectPrimaryWeeklyVolume,
   selectProgressMilestones,
   selectSleepChartData,
   selectTrainingStreak,
-  selectWeeklyTrainingData,
 } from '@/store/selectors';
 
 function MetricTile({
@@ -48,12 +48,11 @@ function MetricTile({
   );
 }
 
-export function Stats() {
+export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
   const storeData = useStoreData();
   const { exercises } = useExerciseCatalog();
   const streak = useMemo(() => selectTrainingStreak(storeData), [storeData]);
-  const weeklyData = useMemo(() => selectWeeklyTrainingData(storeData), [storeData]);
-  const previousWeekVolume = useMemo(() => selectPreviousWeekVolume(storeData), [storeData]);
+  const weeklyVolume = useMemo(() => selectPrimaryWeeklyVolume(storeData), [storeData]);
   const sleepChartData = useMemo(() => selectSleepChartData(storeData), [storeData]);
   const insights = useMemo(() => selectCoachInsights(storeData), [storeData]);
   const personalRecords = useMemo(() => selectPersonalRecords(storeData), [storeData]);
@@ -67,8 +66,9 @@ export function Stats() {
     [personalRecords],
   );
 
-  const currentWeekVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
-  const maxReps = Math.max(...weeklyData.map((day) => day.totalReps), 1);
+  const currentWeekValue = weeklyVolume.current;
+  const previousWeekValue = weeklyVolume.previous;
+  const maxWeekValue = Math.max(...weeklyVolume.byDay.map((day) => day.value), 1);
   const maxSleepScore = Math.max(...sleepChartData.map((day) => day.score ?? 0), 1);
   const maxMuscleLoad = Math.max(...muscleGroupStats.map((stat) => stat.totalLoad), 1);
   const completedMilestones = milestones.filter((milestone) => milestone.complete).length;
@@ -77,15 +77,30 @@ export function Stats() {
     ? (averageSleepHours.reduce((total, day) => total + (day.durationHours ?? 0), 0) / averageSleepHours.length).toFixed(1)
     : '--';
   const featuredInsight = insights[0];
+  const pendingMilestones = milestones.filter((milestone) => !milestone.complete);
+  const completedMilestoneEntries = milestones.filter((milestone) => milestone.complete);
+  const formatWeeklyValue = (value: number) => (
+    weeklyVolume.metricMode === 'load'
+      ? formatWeight(value, storeData.settings.unitSystem)
+      : `${value}`
+  );
 
   return (
     <div className="app-screen flex h-full flex-col overflow-hidden">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Progreso</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Progreso</h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          Tu consistencia, el sueño y la carga semanal puestos en contexto para decidir mejor la siguiente sesión.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Tendencias de la semana</p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Tu progreso</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              Tu consistencia, el sueño y la carga semanal puestos en contexto para decidir mejor la siguiente sesion.
+            </p>
+          </div>
+
+          <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
+            <Settings2 className="size-5" />
+          </HeaderActionButton>
+        </div>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-32">
@@ -102,8 +117,10 @@ export function Stats() {
             </div>
             <div className="rounded-[1.7rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/10 px-4 py-3 text-right">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6EE7B7]">Semana actual</p>
-              <p className="mt-2 text-3xl font-black text-white">{currentWeekVolume}</p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">reps</p>
+              <p className="mt-2 text-3xl font-black text-white">{formatWeeklyValue(currentWeekValue)}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
+                {weeklyVolume.metricMode === 'load' ? 'carga total' : 'reps'}
+              </p>
             </div>
           </div>
 
@@ -152,27 +169,34 @@ export function Stats() {
             </div>
             <div className="app-metric-tile rounded-[1.5rem] px-4 py-3 text-right">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Previo</p>
-              <p className="mt-2 text-2xl font-black text-white">{previousWeekVolume}</p>
+              <p className="mt-2 text-2xl font-black text-white">{formatWeeklyValue(previousWeekValue)}</p>
             </div>
           </div>
 
           <div className="mt-6 flex h-[180px] items-end justify-between gap-3">
-            {weeklyData.map((day) => (
+            {weeklyVolume.byDay.map((day) => (
               <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-36 w-full items-end rounded-full bg-[#0b1320] p-1">
+                <div
+                  role="progressbar"
+                  aria-label={`Volumen ${day.label}`}
+                  aria-valuemin={0}
+                  aria-valuemax={maxWeekValue}
+                  aria-valuenow={day.isFuture ? 0 : day.value}
+                  className="flex h-36 w-full items-end rounded-full bg-[#0b1320] p-1"
+                >
                   <div
                     className={cn(
                       'w-full rounded-full transition-all duration-700',
                       day.isToday ? 'bg-[#6EE7B7]' : 'bg-[#6EE7B7]/35',
                     )}
-                    style={{ height: `${day.isFuture ? 0 : Math.max(8, (day.totalReps / maxReps) * 100)}%` }}
+                    style={{ height: `${day.isFuture ? 0 : Math.max(8, (day.value / maxWeekValue) * 100)}%` }}
                   />
                 </div>
                 <div className="text-center">
                   <p className={cn('text-[10px] font-bold uppercase tracking-[0.25em]', day.isToday ? 'text-[#6EE7B7]' : 'text-zinc-500')}>
                     {day.label}
                   </p>
-                  <p className="mt-1 text-[10px] text-zinc-600">{day.totalReps}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{weeklyVolume.metricMode === 'load' ? Math.round(day.value) : day.value}</p>
                 </div>
               </div>
             ))}
@@ -191,7 +215,14 @@ export function Stats() {
           <div className="mt-6 flex h-[160px] items-end justify-between gap-3">
             {sleepChartData.map((day) => (
               <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-32 w-full items-end rounded-full bg-[#0b1320] p-1">
+                <div
+                  role="progressbar"
+                  aria-label={`Sueno ${day.name}`}
+                  aria-valuemin={0}
+                  aria-valuemax={maxSleepScore}
+                  aria-valuenow={day.score ?? 0}
+                  className="flex h-32 w-full items-end rounded-full bg-[#0b1320] p-1"
+                >
                   <div
                     className="w-full rounded-full bg-[#7AB9FF]/80 transition-all duration-700"
                     style={{ height: `${day.score === null ? 10 : Math.max(10, (day.score / maxSleepScore) * 100)}%` }}
@@ -224,7 +255,14 @@ export function Stats() {
                     </p>
                   </div>
                 </div>
-                <div className="h-2 rounded-full bg-[#0b1320]">
+                <div
+                  role="progressbar"
+                  aria-label={`Carga ${formatMuscleGroup(stat.muscleGroup)}`}
+                  aria-valuemin={0}
+                  aria-valuemax={maxMuscleLoad}
+                  aria-valuenow={stat.totalLoad}
+                  className="h-2 rounded-full bg-[#0b1320]"
+                >
                   <div
                     className="h-full rounded-full bg-[#6EE7B7]"
                     style={{ width: `${Math.max(4, (stat.totalLoad / maxMuscleLoad) * 100)}%` }}
@@ -265,31 +303,50 @@ export function Stats() {
             <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Hitos del sistema</h2>
           </div>
 
-          <div className="mt-6 space-y-3">
-            {milestones.map((milestone) => (
-              <div
-                key={milestone.id}
-                className={cn(
-                  'rounded-[1.8rem] border px-4 py-4',
-                  milestone.complete
-                    ? 'border-[#6EE7B7]/16 bg-[#6EE7B7]/8'
-                    : 'border-white/6 bg-[#0b1320]',
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-black text-white">{milestone.label}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-zinc-400">{milestone.description}</p>
-                  </div>
-                  <span className={cn(
-                    'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]',
-                    milestone.complete ? 'bg-[#6EE7B7] text-[#08111C]' : 'bg-white/6 text-zinc-500',
-                  )}>
-                    {milestone.complete ? 'Hecho' : 'Pendiente'}
-                  </span>
-                </div>
+          <div className="mt-6 space-y-5">
+            <div className="space-y-3">
+              <div className="px-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">En progreso</p>
               </div>
-            ))}
+              {pendingMilestones.map((milestone) => (
+                <div
+                  key={milestone.id}
+                  className="rounded-[1.8rem] border border-white/6 bg-[#0b1320] px-4 py-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-black text-white">{milestone.label}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-zinc-400">{milestone.description}</p>
+                    </div>
+                    <span className="rounded-full bg-white/6 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">
+                      Pendiente
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="px-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Completados</p>
+              </div>
+              {completedMilestoneEntries.map((milestone) => (
+                <div
+                  key={milestone.id}
+                  className="rounded-[1.8rem] border border-[#6EE7B7]/16 bg-[#6EE7B7]/8 px-4 py-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-black text-white">{milestone.label}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-zinc-400">{milestone.description}</p>
+                    </div>
+                    <span className="rounded-full bg-[#6EE7B7] px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#08111C]">
+                      Hecho
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 

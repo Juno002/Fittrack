@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { ArrowRight, Clock3, Moon, ScanHeart, Settings2, Sparkles, Utensils } from 'lucide-react';
+import { ArrowRight, Clock3, Moon, ScanHeart, Settings2, Utensils } from 'lucide-react';
 
+import { HeaderActionButton } from '@/components/HeaderActionButton';
 import type { AppTab } from '@/components/Layout';
 import { ExerciseIcon } from '@/components/ExerciseIcon';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { FoodEntryDialog, RecoveryDialog, SleepLogDialog } from '@/features/log/EntryDialogs';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
@@ -60,6 +62,7 @@ function ScoreField({ label, value, onChange, positive = false }: ScoreFieldProp
               key={score}
               type="button"
               onClick={() => onChange(score)}
+              aria-label={`${label}: ${score} de 5`}
               className={cn(
                 'h-11 rounded-[1.25rem] border text-sm font-black transition-all',
                 isActive
@@ -109,6 +112,8 @@ function ReadinessRing({
 
   return (
     <div
+      role="img"
+      aria-label={`Readiness ${progress}%: ${caption}`}
       className="relative flex size-40 items-center justify-center rounded-full p-[10px] shadow-[0_24px_60px_rgba(0,0,0,0.3)]"
       style={{
         background: `conic-gradient(#6EE7B7 0deg ${fillDegrees}deg, rgba(255,255,255,0.08) ${fillDegrees}deg 360deg)`,
@@ -153,6 +158,8 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
   const cards = useMemo(() => selectDashboardCards(data), [data]);
   const { exercises } = useExerciseCatalog();
   const startDraftSession = useStore((state) => state.startDraftSession);
+  const saveFoodEntry = useStore((state) => state.saveFoodEntry);
+  const saveSleepLog = useStore((state) => state.saveSleepLog);
   const saveRecoveryCheckIn = useStore((state) => state.saveRecoveryCheckIn);
 
   const recommendedExercises = useMemo(
@@ -166,6 +173,10 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
     stress: 2,
     notes: '',
   });
+  const [isFoodDialogOpen, setIsFoodDialogOpen] = useState(false);
+  const [isSleepDialogOpen, setIsSleepDialogOpen] = useState(false);
+  const [isRecoveryDialogOpen, setIsRecoveryDialogOpen] = useState(false);
+  const [isQuickLogSaved, setIsQuickLogSaved] = useState(false);
 
   useEffect(() => {
     const todayCheckIn = cards.todaySummary.recoveryCheckIn;
@@ -176,6 +187,20 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
       notes: todayCheckIn?.notes ?? '',
     });
   }, [cards.todaySummary.recoveryCheckIn]);
+
+  useEffect(() => {
+    if (!isQuickLogSaved) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsQuickLogSaved(false);
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isQuickLogSaved]);
 
   const focusLabel = cards.readiness.recommendedMuscles.map((muscle) => formatMuscleGroup(muscle)).join(' + ');
   const sleepLabel = cards.todaySummary.sleepLog ? `${cards.todaySummary.sleepLog.durationHours}h` : '--';
@@ -209,6 +234,7 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
       stress: quickLog.stress,
       notes: quickLog.notes.trim(),
     });
+    setIsQuickLogSaved(true);
   };
 
   return (
@@ -223,14 +249,9 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            aria-label="Abrir ajustes"
-            className="flex size-12 items-center justify-center rounded-[1.5rem] border border-white/6 bg-[#111827]/88 text-zinc-300 transition-all hover:border-white/12 hover:text-white"
-          >
+          <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
             <Settings2 className="size-5" />
-          </button>
+          </HeaderActionButton>
         </div>
       </header>
 
@@ -245,8 +266,12 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap gap-2">
-                  <span className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em]', getPlanToneStyles(cards.todayPlan.tone))}>
-                    {cards.todayPlan.tone === 'good' ? 'Listo para empujar' : cards.todayPlan.tone === 'warn' ? 'Controla el ritmo' : 'Recupera primero'}
+                  <span className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em]', getPlanToneStyles(cards.readiness.coachTone))}>
+                    {cards.readiness.coachTone === 'good'
+                      ? 'Recuperacion lista'
+                      : cards.readiness.coachTone === 'warn'
+                        ? 'Ajusta el ritmo'
+                        : 'Prioriza recuperacion'}
                   </span>
                   <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-zinc-300">
                     {cards.trainingScheduleLabel}
@@ -254,7 +279,7 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
                 </div>
 
                 <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-white">
-                  {cards.todayPlan.title}
+                  {cards.readiness.coachTitle}
                 </h2>
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
                   {cards.readiness.coachBody}
@@ -267,22 +292,6 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
                 </div>
               </div>
             </div>
-
-            <div className="app-metric-tile flex items-center justify-between rounded-[2rem] px-4 py-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Plan activo</p>
-                <p className="mt-1 text-sm font-bold text-white">{cards.todayPlan.subtitle}</p>
-              </div>
-              <Sparkles className="size-5 text-[#6EE7B7]" />
-            </div>
-
-            <Button
-              className="h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[11px] font-black uppercase tracking-[0.32em] text-[#08111C] shadow-[0_20px_40px_rgba(110,231,183,0.25)] hover:bg-[#62e6b0]"
-              onClick={handleStartSession}
-            >
-              {data.draftSession ? 'Continuar sesión' : cards.todayPlan.ctaLabel}
-              <ArrowRight className="ml-2 size-4" />
-            </Button>
           </div>
         </section>
 
@@ -292,14 +301,14 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
             value={sleepLabel}
             hint="Actualiza tu descanso para afinar el score."
             icon={Moon}
-            onClick={() => onNavigate('log')}
+            onClick={() => setIsSleepDialogOpen(true)}
           />
           <ActionCard
             label="Comida"
             value={caloriesLabel}
             hint="Tus calorías y macros también recuperan."
             icon={Utensils}
-            onClick={() => onNavigate('log')}
+            onClick={() => setIsFoodDialogOpen(true)}
           />
           <div className="col-span-2">
             <ActionCard
@@ -307,7 +316,7 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
               value={quickLogSummary}
               hint="Registra cómo llegas hoy a la sesión."
               icon={ScanHeart}
-              onClick={() => onNavigate('log')}
+              onClick={() => setIsRecoveryDialogOpen(true)}
             />
           </div>
         </div>
@@ -346,6 +355,14 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
               </div>
             ))}
           </div>
+
+          <Button
+            className="mt-5 h-16 w-full rounded-[2rem] bg-[#6EE7B7] text-[11px] font-black uppercase tracking-[0.32em] text-[#08111C] shadow-[0_20px_40px_rgba(110,231,183,0.25)] hover:bg-[#62e6b0]"
+            onClick={handleStartSession}
+          >
+            {data.draftSession ? 'Continuar sesion' : cards.todayPlan.ctaLabel}
+            <ArrowRight className="ml-2 size-4" />
+          </Button>
         </section>
 
         <section className="app-panel rounded-[2.5rem] p-5">
@@ -409,7 +426,7 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
               className="h-14 w-full rounded-[1.75rem] bg-white text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-zinc-100"
               onClick={handleSaveQuickLog}
             >
-              Guardar quick log
+              <span aria-live="polite">{isQuickLogSaved ? 'Guardado ✓' : 'Guardar quick log'}</span>
             </Button>
           </div>
         </section>
@@ -486,6 +503,28 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
 
         <div className="h-4" />
       </div>
+
+      <FoodEntryDialog
+        open={isFoodDialogOpen}
+        dayKey={cards.todayKey}
+        entry={cards.todaySummary.foods[0] ?? null}
+        onOpenChange={setIsFoodDialogOpen}
+        onSave={saveFoodEntry}
+      />
+      <SleepLogDialog
+        open={isSleepDialogOpen}
+        dayKey={cards.todayKey}
+        entry={cards.todaySummary.sleepLog}
+        onOpenChange={setIsSleepDialogOpen}
+        onSave={saveSleepLog}
+      />
+      <RecoveryDialog
+        open={isRecoveryDialogOpen}
+        dayKey={cards.todayKey}
+        entry={cards.todaySummary.recoveryCheckIn}
+        onOpenChange={setIsRecoveryDialogOpen}
+        onSave={saveRecoveryCheckIn}
+      />
     </div>
   );
 }

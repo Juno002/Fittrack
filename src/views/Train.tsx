@@ -1,9 +1,10 @@
 import { useDeferredValue, useMemo, useState } from 'react';
-import { Search, Sparkles, Trophy } from 'lucide-react';
+import { Search, Settings2, Sparkles, Trophy, X } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ExerciseDetail } from '@/components/ExerciseDetail';
 import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { HeaderActionButton } from '@/components/HeaderActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
@@ -18,11 +19,12 @@ import type { ExerciseDefinition, MuscleGroup, WorkoutTemplate } from '@/store/t
 
 interface TrainProps {
   onOpenWorkout: () => void;
+  onOpenProfile: () => void;
 }
 
 const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
 
-export function Train({ onOpenWorkout }: TrainProps) {
+export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
   const data = useStoreData();
   const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
@@ -155,14 +157,27 @@ export function Train({ onOpenWorkout }: TrainProps) {
     setPendingRoutineStart(null);
   };
 
+  const handleFilterChange = (filter: (typeof FILTERS)[number]) => {
+    setActiveFilter(filter);
+    setSearchQuery('');
+  };
+
   return (
     <div className="app-screen flex h-full flex-col overflow-hidden">
       <header className="px-6 pt-10 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Entrena según recuperación</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Entrenar</h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          Usa catálogo, plantillas y tu score de recuperación para construir la sesión correcta en vez de forzar la semana.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Entrena segun recuperacion</p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">Entrenar</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              Usa catalogo, plantillas y tu score de recuperacion para construir la sesion correcta en vez de forzar la semana.
+            </p>
+          </div>
+
+          <HeaderActionButton onClick={onOpenProfile} ariaLabel="Abrir ajustes">
+            <Settings2 className="size-5" />
+          </HeaderActionButton>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 pb-32">
@@ -171,6 +186,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
             <button
               type="button"
               onClick={() => setViewMode('catalog')}
+              aria-pressed={viewMode === 'catalog'}
               className={cn(
                 'flex-1 rounded-[1.3rem] py-3 text-[10px] font-black uppercase tracking-[0.28em] transition-all',
                 viewMode === 'catalog' ? 'bg-[#6EE7B7] text-[#08111C]' : 'text-zinc-500 hover:text-white',
@@ -181,6 +197,7 @@ export function Train({ onOpenWorkout }: TrainProps) {
             <button
               type="button"
               onClick={() => setViewMode('templates')}
+              aria-pressed={viewMode === 'templates'}
               className={cn(
                 'flex-1 rounded-[1.3rem] py-3 text-[10px] font-black uppercase tracking-[0.28em] transition-all',
                 viewMode === 'templates' ? 'bg-[#6EE7B7] text-[#08111C]' : 'text-zinc-500 hover:text-white',
@@ -249,6 +266,16 @@ export function Train({ onOpenWorkout }: TrainProps) {
                   placeholder="Buscar ejercicio o grupo muscular..."
                   className="h-14 rounded-[1.6rem] border-none bg-[#0b1320] pl-11 text-base font-bold text-white placeholder:text-zinc-600"
                 />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    aria-label="Limpiar busqueda"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white"
+                  >
+                    <X className="size-4" />
+                  </button>
+                ) : null}
               </div>
 
               <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
@@ -256,7 +283,8 @@ export function Train({ onOpenWorkout }: TrainProps) {
                   <button
                     key={filter}
                     type="button"
-                    onClick={() => setActiveFilter(filter)}
+                    aria-pressed={activeFilter === filter}
+                    onClick={() => handleFilterChange(filter)}
                     className={cn(
                       'shrink-0 rounded-[1.25rem] border px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] transition-all',
                       activeFilter === filter
@@ -335,12 +363,42 @@ export function Train({ onOpenWorkout }: TrainProps) {
           ) : (
             <div className="mt-5 space-y-3">
               {data.templates.length === 0 ? (
-                <div className="rounded-[1.9rem] border border-dashed border-white/8 bg-[#0b1320] px-5 py-12 text-center">
-                  <Trophy className="mx-auto size-8 text-zinc-700" />
-                  <h2 className="mt-4 text-xl font-black text-white">Sin plantillas guardadas</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                    Guarda una sesión completa como plantilla y aparecerá aquí lista para repetir.
-                  </p>
+                <div className="space-y-4">
+                  <div className="rounded-[1.9rem] border border-dashed border-white/8 bg-[#0b1320] px-5 py-12 text-center">
+                    <Trophy className="mx-auto size-8 text-zinc-700" />
+                    <h2 className="mt-4 text-xl font-black text-white">Sin plantillas guardadas</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                      Guarda una sesion completa como plantilla y aparecera aqui lista para repetir.
+                    </p>
+                  </div>
+
+                  <section className="space-y-3">
+                    <div className="px-1">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Inicio rapido</p>
+                      <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Rutinas guiadas disponibles</h2>
+                    </div>
+
+                    {routinePresets.map((preset) => (
+                      <article key={preset.id} className="app-panel-soft rounded-[1.8rem] p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-black text-white">{preset.name}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#6EE7B7]">
+                              {preset.chip}
+                            </p>
+                          </div>
+                          <Button
+                            className="h-10 rounded-[1.2rem] bg-[#6EE7B7] px-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#08111C] hover:bg-[#62e6b0]"
+                            onClick={() => handleStartPreset(preset.id)}
+                          >
+                            Iniciar
+                          </Button>
+                        </div>
+
+                        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{preset.description}</p>
+                      </article>
+                    ))}
+                  </section>
                 </div>
               ) : (
                 data.templates.map((template) => (

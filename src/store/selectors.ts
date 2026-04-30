@@ -382,6 +382,42 @@ export function selectPreviousWeekVolume(state: AppStoreData, referenceDate = ne
     .reduce((total, session) => total + getWorkoutSessionRepTotal(session), 0);
 }
 
+function selectPreviousWeekTotals(state: AppStoreData, referenceDate = new Date()) {
+  const currentWeekStart = startOfWeek(referenceDate, { weekStartsOn: 1 });
+  const previousWeekStart = subDays(currentWeekStart, 7);
+  const previousWeekEnd = endOfWeek(previousWeekStart, { weekStartsOn: 1 });
+
+  return state.sessions
+    .filter((session) => {
+      const performedAt = parseISO(session.performedAt);
+      return performedAt >= previousWeekStart && performedAt <= previousWeekEnd;
+    })
+    .reduce((totals, session) => ({
+      totalReps: totals.totalReps + getWorkoutSessionRepTotal(session),
+      totalLoad: totals.totalLoad + getWorkoutSessionLoadTotal(session),
+    }), { totalReps: 0, totalLoad: 0 });
+}
+
+export function selectPrimaryWeeklyVolume(state: AppStoreData, referenceDate = new Date()) {
+  const byDay = selectWeeklyTrainingData(state, referenceDate);
+  const previousWeekTotals = selectPreviousWeekTotals(state, referenceDate);
+  const currentTotals = byDay.reduce((totals, day) => ({
+    totalReps: totals.totalReps + day.totalReps,
+    totalLoad: totals.totalLoad + day.totalLoad,
+  }), { totalReps: 0, totalLoad: 0 });
+  const metricMode = currentTotals.totalLoad > 0 || previousWeekTotals.totalLoad > 0 ? 'load' : 'reps';
+
+  return {
+    metricMode,
+    current: metricMode === 'load' ? currentTotals.totalLoad : currentTotals.totalReps,
+    previous: metricMode === 'load' ? previousWeekTotals.totalLoad : previousWeekTotals.totalReps,
+    byDay: byDay.map((day) => ({
+      ...day,
+      value: metricMode === 'load' ? day.totalLoad : day.totalReps,
+    })),
+  };
+}
+
 export function selectSleepChartData(state: AppStoreData, referenceDate = new Date()) {
   return getRecentDayKeys(7, referenceDate).map((dayKey) => {
     const entry = selectSleepLogByDay(state, dayKey);

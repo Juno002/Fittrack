@@ -10,6 +10,7 @@ interface LayoutProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   draftName?: string;
+  hasDraftSession?: boolean;
   onResumeDraft?: () => void;
 }
 
@@ -26,6 +27,7 @@ export function Layout({
   activeTab,
   setActiveTab,
   draftName,
+  hasDraftSession = false,
   onResumeDraft,
 }: LayoutProps) {
   return (
@@ -57,18 +59,31 @@ export function Layout({
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
+          const hasActiveDraftBadge = item.id === 'train' && hasDraftSession;
+          const buttonLabel = hasActiveDraftBadge
+            ? `${item.label}, sesion activa`
+            : item.label;
 
           return (
             <button
               key={item.id}
               type="button"
+              aria-label={buttonLabel}
               onClick={() => setActiveTab(item.id)}
               className={cn(
                 'flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-[1.6rem] px-1 py-3 transition-all duration-300',
                 isActive ? 'bg-white/6' : 'hover:bg-white/5',
               )}
             >
-              <Icon className={cn('size-5 transition-all', isActive ? 'scale-110 text-[#6EE7B7]' : 'text-zinc-600')} />
+              <span className="relative">
+                <Icon className={cn('size-5 transition-all', isActive ? 'scale-110 text-[#6EE7B7]' : 'text-zinc-600')} />
+                {hasActiveDraftBadge ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-1 -top-1 size-2.5 rounded-full bg-[#6EE7B7] shadow-[0_0_0_3px_rgba(7,16,26,0.9)]"
+                  />
+                ) : null}
+              </span>
               <span className={cn('truncate text-[9px] font-bold uppercase tracking-[0.22em]', isActive ? 'text-white' : 'text-zinc-600')}>
                 {item.label}
               </span>

@@ -12,10 +12,10 @@ const StatsView = lazy(() => import('./views/Stats').then((module) => ({ default
 const ProfileView = lazy(() => import('./views/Profile').then((module) => ({ default: module.Profile })));
 const WorkoutsView = lazy(() => import('./views/Workouts').then((module) => ({ default: module.Workouts })));
 
-function ViewFallback() {
+function ViewFallback({ label }: { label: string }) {
   return (
     <div className="flex h-full w-full items-center justify-center bg-[#07101A] text-sm font-semibold text-zinc-500">
-      Cargando HomeFit Recovery...
+      {label}
     </div>
   );
 }
@@ -28,6 +28,22 @@ export default function App() {
   const [isWorkoutOpen, setIsWorkoutOpen] = useState(Boolean(draftSession));
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const previousDraftId = useRef<string | null>(draftId);
+
+  const handleSetActiveTab = (tab: AppTab) => {
+    setIsProfileOpen(false);
+    setActiveTab(tab);
+  };
+  const activeViewFallbackLabel = isProfileOpen
+    ? 'Cargando ajustes...'
+    : activeTab === 'home'
+      ? 'Cargando inicio...'
+      : activeTab === 'map'
+        ? 'Cargando mapa...'
+        : activeTab === 'train'
+          ? 'Cargando catalogo...'
+          : activeTab === 'log'
+            ? 'Cargando registro...'
+            : 'Cargando progreso...';
 
   useEffect(() => {
     if (!draftId) {
@@ -49,16 +65,8 @@ export default function App() {
 
   if (draftSession && isWorkoutOpen) {
     return (
-      <Suspense fallback={<ViewFallback />}>
+      <Suspense fallback={<ViewFallback label="Cargando entrenamiento..." />}>
         <WorkoutsView onExit={() => setIsWorkoutOpen(false)} />
-      </Suspense>
-    );
-  }
-
-  if (isProfileOpen) {
-    return (
-      <Suspense fallback={<ViewFallback />}>
-        <ProfileView onBack={() => setIsProfileOpen(false)} />
       </Suspense>
     );
   }
@@ -66,22 +74,43 @@ export default function App() {
   return (
     <Layout
       activeTab={activeTab}
-      setActiveTab={setActiveTab}
+      setActiveTab={handleSetActiveTab}
       draftName={draftSession ? (draftSession.name.trim() || 'Borrador') : undefined}
+      hasDraftSession={Boolean(draftSession)}
       onResumeDraft={draftSession ? () => setIsWorkoutOpen(true) : undefined}
     >
-      <Suspense fallback={<ViewFallback />}>
-        {activeTab === 'home' ? (
+      <Suspense fallback={<ViewFallback label={activeViewFallbackLabel} />}>
+        {isProfileOpen ? (
+          <ProfileView onBack={() => setIsProfileOpen(false)} />
+        ) : null}
+        {!isProfileOpen && activeTab === 'home' ? (
           <DashboardView
             onOpenWorkout={() => setIsWorkoutOpen(true)}
             onOpenProfile={() => setIsProfileOpen(true)}
-            onNavigate={setActiveTab}
+            onNavigate={handleSetActiveTab}
           />
         ) : null}
-        {activeTab === 'map' ? <MapView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
-        {activeTab === 'train' ? <TrainView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
-        {activeTab === 'log' ? <LogView onOpenWorkout={() => setIsWorkoutOpen(true)} /> : null}
-        {activeTab === 'progress' ? <StatsView /> : null}
+        {!isProfileOpen && activeTab === 'map' ? (
+          <MapView
+            onOpenWorkout={() => setIsWorkoutOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+          />
+        ) : null}
+        {!isProfileOpen && activeTab === 'train' ? (
+          <TrainView
+            onOpenWorkout={() => setIsWorkoutOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+          />
+        ) : null}
+        {!isProfileOpen && activeTab === 'log' ? (
+          <LogView
+            onOpenWorkout={() => setIsWorkoutOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+          />
+        ) : null}
+        {!isProfileOpen && activeTab === 'progress' ? (
+          <StatsView onOpenProfile={() => setIsProfileOpen(true)} />
+        ) : null}
       </Suspense>
     </Layout>
   );

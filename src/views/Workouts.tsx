@@ -321,22 +321,80 @@ export function Workouts({ onExit }: WorkoutsProps) {
 
   if (isFinishing) {
     return (
-      <WorkoutFinishView
-        logs={draftSession.logs}
-        elapsedSeconds={elapsedSeconds}
-        onBack={() => setIsFinishing(false)}
-        onFinish={(effort) => {
-          const session = finalizeDraftSession(effort);
-          if (session) {
-            onExit();
-          }
-        }}
-      />
+      <>
+        <WorkoutFinishView
+          logs={draftSession.logs}
+          elapsedSeconds={elapsedSeconds}
+          savedTemplateName={savedTemplateName}
+          onBack={() => setIsFinishing(false)}
+          onSaveTemplate={() => {
+            setTemplateName(draftSession.name || 'Mi rutina');
+            setIsTemplateDialogOpen(true);
+          }}
+          onFinish={(effort) => {
+            const session = finalizeDraftSession(effort);
+            if (session) {
+              onExit();
+            }
+          }}
+        />
+
+        <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+          <DialogContent className="max-w-sm rounded-[2.5rem] border-white/6 bg-[#101827] p-6 text-white">
+            <DialogHeader className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Guardar plantilla</p>
+              <DialogTitle className="text-2xl font-black tracking-tight text-white">Reutiliza esta rutina</DialogTitle>
+            </DialogHeader>
+
+            <div className="mt-4 space-y-2">
+              <label htmlFor="template-name-finish" className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                Nombre
+              </label>
+              <Input
+                id="template-name-finish"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="Ej: Tren superior suave"
+                className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
+              />
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <Button
+                className="h-14 rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
+                disabled={!templateName.trim()}
+                onClick={handleSaveTemplate}
+              >
+                Guardar plantilla
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-12 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
+                onClick={() => setIsTemplateDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   return (
     <div className="app-screen flex h-[100dvh] flex-col overflow-hidden">
+      {draftSession.logs.length === 0 ? (
+        <div className="z-20 px-6 pt-8 pb-2">
+          <Button
+            variant="ghost"
+            className="h-12 rounded-[1.5rem] px-4 text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400 hover:bg-white/5 hover:text-white"
+            onClick={onExit}
+          >
+            Cerrar
+          </Button>
+        </div>
+      ) : null}
+
       <AnimatePresence mode="wait">
         {draftSession.logs.length > 0 && viewMode === 'editar' && (
           <motion.div
@@ -365,6 +423,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
         <div className="z-30 px-6 py-4">
           <div className="relative mx-auto flex w-fit items-center rounded-[2rem] border border-white/5 bg-white/5 p-1.5 shadow-2xl backdrop-blur-xl">
             <button
+              aria-pressed={viewMode === 'entrenar'}
               className={cn(
                 'flex items-center justify-center gap-2 rounded-[1.5rem] px-6 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300',
                 viewMode === 'entrenar'
@@ -377,6 +436,7 @@ export function Workouts({ onExit }: WorkoutsProps) {
               ENTRENAR
             </button>
             <button
+              aria-pressed={viewMode === 'editar'}
               className={cn(
                 'flex items-center justify-center gap-2 rounded-[1.5rem] px-6 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300',
                 viewMode === 'editar'
@@ -616,6 +676,12 @@ export function Workouts({ onExit }: WorkoutsProps) {
                       DESCARTAR
                     </Button>
                   </div>
+
+                  {validLogCount === 0 ? (
+                    <p className="mt-3 text-center text-xs leading-relaxed text-zinc-500">
+                      Completa al menos una serie valida para finalizar la sesion.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </motion.div>

@@ -5,14 +5,18 @@ import type { WorkoutLog } from '@/store/types';
 interface WorkoutFinishViewProps {
   logs: WorkoutLog[];
   elapsedSeconds: number;
+  savedTemplateName: string | null;
   onBack: () => void;
+  onSaveTemplate: () => void;
   onFinish: (effort: number) => void;
 }
 
 export function WorkoutFinishView({
   logs,
   elapsedSeconds,
+  savedTemplateName,
   onBack,
+  onSaveTemplate,
   onFinish,
 }: WorkoutFinishViewProps) {
   const totalSets = logs.reduce((total, log) => total + log.sets.length, 0);
@@ -59,15 +63,30 @@ export function WorkoutFinishView({
             <p className="mt-2 text-2xl font-black text-white">{completedSets}</p>
           </div>
         </div>
+
+        {savedTemplateName ? (
+          <div className="w-full max-w-md rounded-[1.7rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/10 px-4 py-3 text-sm font-bold text-white">
+            Plantilla guardada: {savedTemplateName}
+          </div>
+        ) : null}
       </div>
 
-      <Button
-        variant="ghost"
-        className="mt-8 h-14 rounded-[1.75rem] text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
-        onClick={onBack}
-      >
-        Volver a la sesión
-      </Button>
+      <div className="mt-8 grid gap-3">
+        <Button
+          variant="outline"
+          className="h-14 rounded-[1.75rem] border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-[0.25em] text-white hover:bg-white/10"
+          onClick={onSaveTemplate}
+        >
+          Guardar como plantilla
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-14 rounded-[1.75rem] text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 hover:bg-white/5 hover:text-white"
+          onClick={onBack}
+        >
+          Volver a la sesion
+        </Button>
+      </div>
     </div>
   );
 }

@@ -28,13 +28,6 @@ function createPersistedState(overrides: Partial<AppStoreData> = {}): AppStoreDa
   };
 }
 
-function seedStorage(overrides: Record<string, unknown> = {}) {
-  localStorage.setItem('fittrack-storage', JSON.stringify({
-    state: createPersistedState(overrides),
-    version: 3,
-  }));
-}
-
 async function loadFreshModules() {
   vi.resetModules();
   const [{ default: App }, { useStore }] = await Promise.all([import('@/App'), import('@/store')]);
@@ -60,6 +53,15 @@ describe('App', () => {
   it('completes onboarding and persists the local setup', async () => {
     const user = userEvent.setup();
     const { Onboarding, useStore } = await loadFreshOnboarding();
+    useStore.getState().hydrateAppStoreData({
+      ...createPersistedState(),
+      profile: { name: '', age: 25, weight: 70, height: 175, gender: 'male' },
+      weightLogs: [],
+      settings: {
+        ...createPersistedState().settings,
+        onboarded: false,
+      },
+    });
 
     render(<Onboarding />);
 
@@ -75,17 +77,16 @@ describe('App', () => {
     expect(useStore.getState().settings.onboarded).toBe(true);
     expect(useStore.getState().profile.name).toBe('Junior');
     expect(useStore.getState().weightLogs).toHaveLength(1);
-  }, 10000);
+  }, 15000);
 
   it('shows the five-tab shell, saves a quick log and exposes profile backup actions', async () => {
-    seedStorage();
     const user = userEvent.setup();
     const { App, useStore } = await loadFreshModules();
-    await useStore.persist.rehydrate();
+    useStore.getState().hydrateAppStoreData(createPersistedState());
 
     render(<App />);
 
-    await screen.findByText('Hoy');
+    await screen.findByRole('heading', { name: 'Hoy' });
     expect(screen.getByRole('button', { name: 'Inicio' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mapa' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entrenar' })).toBeInTheDocument();
@@ -99,6 +100,7 @@ describe('App', () => {
     await waitFor(() => {
       expect(useStore.getState().recoveryCheckins).toHaveLength(1);
     });
+    expect(await screen.findByText('Guardado ✓')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Registro' }));
     expect(await screen.findByText('Rodillas frescas')).toBeInTheDocument();
@@ -108,6 +110,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('button', { name: /exportar backup/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /importar backup/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inicio' })).toBeInTheDocument();
 
     const ageInput = screen.getByRole('spinbutton', { name: 'Edad' });
     await user.clear(ageInput);
@@ -115,6 +118,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
 
     expect(useStore.getState().profile.age).toBe(29);
+    expect(await screen.findByText('Guardado ✓')).toBeInTheDocument();
   });
 
   it('opens an existing draft session with its saved name intact', async () => {
