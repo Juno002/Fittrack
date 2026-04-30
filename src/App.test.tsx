@@ -17,7 +17,7 @@ function createPersistedState(overrides: Partial<AppStoreData> = {}): AppStoreDa
     settings: {
       unitSystem: 'metric',
       onboarded: true,
-      defaultRestDuration: 60,
+      defaultRestDuration: 75,
       connectedSignals: { sleep: true, food: true, recovery: true },
       trainingSchedule: { days: ['mon', 'wed', 'fri'], preferredTime: 'afternoon' },
       reminders: { enabled: false, time: '18:30' },

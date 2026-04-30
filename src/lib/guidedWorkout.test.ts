@@ -97,9 +97,9 @@ describe('guided workout routines', () => {
     expect(upper.logs).toHaveLength(3);
     expect(lower.logs).toHaveLength(3);
     expect(core.logs).toHaveLength(3);
-    expect(upper.logs.every((log) => log.isBodyweight)).toBe(true);
-    expect(lower.logs.every((log) => log.isBodyweight)).toBe(true);
-    expect(core.logs.every((log) => log.isBodyweight)).toBe(true);
+    expect(upper.logs.every((log) => log.sets.length >= 2)).toBe(true);
+    expect(lower.logs.every((log) => log.sets.length >= 2)).toBe(true);
+    expect(core.logs.every((log) => log.sets.length >= 2)).toBe(true);
   });
 
   it('creates a guided flow with warmup, rest, main steps and cooldown', () => {
@@ -107,16 +107,19 @@ describe('guided workout routines', () => {
     const draftSession = createDraftSession({
       name: preset.name,
       logs: preset.logs.slice(0, 1),
-      restDurationSeconds: 45,
+      restDurationSeconds: 75,
     });
 
     const steps = buildGuidedWorkoutSteps(draftSession);
 
     expect(steps[0]?.kind).toBe('warmup');
     expect(steps[1]?.kind).toBe('warmup');
-    expect(steps[2]?.kind).toBe('rest');
+    expect(steps[2]?.kind).toBe('warmup');
+    expect(steps[3]?.kind).toBe('rest');
     expect(steps.some((step) => step.kind === 'main')).toBe(true);
     expect(steps.slice(-2).every((step) => step.kind === 'cooldown')).toBe(true);
+    expect(steps[0]?.kind === 'warmup' ? steps[0].durationSeconds : 0).toBe(60);
+    expect(steps[3]?.kind === 'rest' ? steps[3].durationSeconds : 0).toBe(60);
 
     const mainStep = steps.find((step) => step.kind === 'main');
     expect(mainStep && mainStep.kind === 'main' ? mainStep.isBodyweight : false).toBe(true);

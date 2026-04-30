@@ -147,9 +147,9 @@ export function Workouts({ onExit }: WorkoutsProps) {
 
   const routinePresets = useMemo(
     () => (['upper', 'lower', 'core'] as GuidedRoutinePresetId[])
-      .map((presetId) => buildGuidedRoutinePreset(exercises, presetId))
+      .map((presetId) => buildGuidedRoutinePreset(exercises, presetId, storeData.sessions))
       .filter((preset) => preset.logs.length > 0),
-    [exercises],
+    [exercises, storeData.sessions],
   );
 
   useEffect(() => {

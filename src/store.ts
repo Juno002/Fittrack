@@ -4,6 +4,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { dayKeyToIso, toDayKey } from '@/lib/dates';
 import { getExerciseIconName, STARTER_EXERCISES } from '@/lib/exercises';
 import {
+  clampRestDuration,
+  DEFAULT_REST_DURATION_SECONDS,
+} from '@/lib/recoveryModel';
+import {
   buildWorkoutLog,
   createDraftSession,
   createWorkoutSet,
@@ -97,7 +101,7 @@ const DEFAULT_REMINDERS: ReminderSettings = {
 const DEFAULT_SETTINGS: AppSettings = {
   unitSystem: 'metric',
   onboarded: false,
-  defaultRestDuration: 60,
+  defaultRestDuration: DEFAULT_REST_DURATION_SECONDS,
   connectedSignals: DEFAULT_CONNECTED_SIGNALS,
   trainingSchedule: DEFAULT_TRAINING_SCHEDULE,
   reminders: DEFAULT_REMINDERS,
@@ -470,7 +474,7 @@ function normalizeSettings(value: unknown): AppSettings {
     unitSystem: settings.unitSystem === 'imperial' ? 'imperial' : defaults.unitSystem,
     onboarded: typeof settings.onboarded === 'boolean' ? settings.onboarded : defaults.onboarded,
     defaultRestDuration: typeof settings.defaultRestDuration === 'number'
-      ? Math.max(15, settings.defaultRestDuration)
+      ? clampRestDuration(settings.defaultRestDuration)
       : defaults.defaultRestDuration,
     connectedSignals: normalizeConnectedSignals(settings.connectedSignals),
     trainingSchedule: normalizeTrainingSchedule(settings.trainingSchedule),
@@ -752,7 +756,7 @@ export const useStore = create<AppState>()(
         set((state) => ({
           draftSession: createDraftSession({
             ...seed,
-            restDurationSeconds: seed?.restDurationSeconds ?? state.settings.defaultRestDuration ?? 60,
+            restDurationSeconds: seed?.restDurationSeconds ?? state.settings.defaultRestDuration ?? DEFAULT_REST_DURATION_SECONDS,
           }),
         })),
 
@@ -765,9 +769,9 @@ export const useStore = create<AppState>()(
 
       setDraftRestDuration: (seconds) =>
         set((state) => ({
-          settings: { ...state.settings, defaultRestDuration: Math.max(15, seconds) },
+          settings: { ...state.settings, defaultRestDuration: clampRestDuration(seconds) },
           draftSession: state.draftSession
-            ? { ...state.draftSession, restDurationSeconds: Math.max(15, seconds) }
+            ? { ...state.draftSession, restDurationSeconds: clampRestDuration(seconds) }
             : state.draftSession,
         })),
 
@@ -785,7 +789,7 @@ export const useStore = create<AppState>()(
               }
             : createDraftSession({
                 logs: [buildWorkoutLog(exercise)],
-                restDurationSeconds: state.settings.defaultRestDuration ?? 60,
+                restDurationSeconds: state.settings.defaultRestDuration ?? DEFAULT_REST_DURATION_SECONDS,
               }),
         })),
 
@@ -900,7 +904,7 @@ export const useStore = create<AppState>()(
                 const completed = !set.completed;
 
                 if (completed) {
-                  restTimerEndsAt = new Date(Date.now() + (state.draftSession?.restDurationSeconds ?? 60) * 1000).toISOString();
+                  restTimerEndsAt = new Date(Date.now() + (state.draftSession?.restDurationSeconds ?? DEFAULT_REST_DURATION_SECONDS) * 1000).toISOString();
                 }
 
                 return { ...set, completed };

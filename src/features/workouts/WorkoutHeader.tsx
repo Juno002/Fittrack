@@ -3,6 +3,7 @@ import { Timer, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatDuration } from '@/lib/display';
+import { DEFAULT_REST_DURATION_SECONDS } from '@/lib/recoveryModel';
 
 interface WorkoutHeaderProps {
   sessionName: string;
@@ -16,7 +17,7 @@ interface WorkoutHeaderProps {
   hideRestTimer?: boolean;
 }
 
-const REST_PRESETS = [45, 60, 90];
+const REST_PRESETS = [45, DEFAULT_REST_DURATION_SECONDS, 120];
 
 export function WorkoutHeader({
   sessionName,

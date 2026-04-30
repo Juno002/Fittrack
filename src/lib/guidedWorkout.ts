@@ -1,9 +1,13 @@
-import { buildWorkoutLog, createWorkoutSet } from '@/lib/workout';
+import { differenceInDays } from 'date-fns';
+
+import { DEFAULT_REST_DURATION_SECONDS } from '@/lib/recoveryModel';
+import { buildWorkoutLog, createWorkoutSet, getTrackedSets } from '@/lib/workout';
 import type {
   DraftSession,
   ExerciseDefinition,
   MuscleGroup,
   WorkoutLog,
+  WorkoutSession,
 } from '@/store/types';
 
 export type GuidedRoutinePresetId = 'upper' | 'lower' | 'core';
@@ -53,7 +57,6 @@ interface RoutinePresetMeta {
   muscleGroups: MuscleGroup[];
   preferredIds: string[];
   keywords: string[];
-  setCount: number;
   defaultReps: number;
 }
 
@@ -71,9 +74,9 @@ const ROUTINE_PRESET_META: RoutinePresetMeta[] = [
   {
     id: 'upper',
     name: 'Rutina tren superior',
-    description: 'Empuje de pecho, hombro y brazos con variantes de peso corporal.',
-    chip: 'Sin equipo',
-    muscleGroups: ['chest', 'shoulders', 'arms'],
+    description: 'Empuje y tiron de base con progresion hacia variantes mas exigentes o con carga externa.',
+    chip: 'Guiada',
+    muscleGroups: ['chest', 'back', 'shoulders', 'arms'],
     preferredIds: [
       'push-ups',
       'Pushups',
@@ -84,15 +87,14 @@ const ROUTINE_PRESET_META: RoutinePresetMeta[] = [
       'Decline_Push-Up',
       'Incline_Push-Up_Close-Grip',
     ],
-    keywords: ['push-up', 'pushup', 'close-grip', 'triceps', 'clock push', 'decline push', 'incline push'],
-    setCount: 2,
+    keywords: ['push-up', 'pushup', 'row', 'press', 'dip', 'triceps', 'pulldown', 'decline push', 'incline push'],
     defaultReps: 10,
   },
   {
     id: 'lower',
     name: 'Rutina tren inferior',
-    description: 'Piernas y glúteos con sentadillas, zancadas y bisagra simple.',
-    chip: 'Bodyweight',
+    description: 'Piernas y gluteos con sentadillas, zancadas, puentes y variantes estables para progresar.',
+    chip: 'Guiada',
     muscleGroups: ['legs'],
     preferredIds: [
       'squats',
@@ -104,14 +106,13 @@ const ROUTINE_PRESET_META: RoutinePresetMeta[] = [
       'Butt_Lift_Bridge',
       'Single_Leg_Glute_Bridge',
     ],
-    keywords: ['squat', 'lunge', 'bridge', 'glute', 'hip raise'],
-    setCount: 2,
+    keywords: ['squat', 'lunge', 'bridge', 'glute', 'hip raise', 'deadlift', 'hinge', 'split squat'],
     defaultReps: 12,
   },
   {
     id: 'core',
     name: 'Rutina core',
-    description: 'Zona media con repeticiones controladas y sin pedir peso.',
+    description: 'Zona media con repeticiones controladas, isometricos y variantes que escalan sin romper la tecnica.',
     chip: 'Guiada',
     muscleGroups: ['core'],
     preferredIds: [
@@ -125,8 +126,7 @@ const ROUTINE_PRESET_META: RoutinePresetMeta[] = [
       'Front_Leg_Raises',
       'Bent-Knee_Hip_Raise',
     ],
-    keywords: ['dead bug', 'crunch', 'sit-up', 'leg raise', 'flutter', 'hip raise', 'mountain climber'],
-    setCount: 2,
+    keywords: ['dead bug', 'crunch', 'sit-up', 'leg raise', 'flutter', 'hip raise', 'mountain climber', 'plank', 'hollow'],
     defaultReps: 14,
   },
 ];
@@ -175,38 +175,45 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
         {
           title: 'Marcha activa',
           subtitle: 'Eleva rodillas y mueve brazos con ritmo.',
-          detail: 'Respira por la nariz y suelta caderas. La pantalla avanzará sola.',
-          durationSeconds: 35,
+          detail: 'Busca ritmo y respiracion estable antes de cargar las piernas.',
+          durationSeconds: 60,
           tone: 'mint',
         },
         {
           title: 'Movilidad de cadera',
-          subtitle: 'Sentadilla parcial y apertura de cadera.',
-          detail: 'Busca rango cómodo, no velocidad. Mantén el tronco largo.',
-          durationSeconds: 35,
+          subtitle: 'Sentadilla parcial y apertura controlada.',
+          detail: 'Abre rango sin forzar y prepara tobillos, caderas y rodillas.',
+          durationSeconds: 60,
           tone: 'blue',
+        },
+        {
+          title: 'Bisagra y puente',
+          subtitle: 'Activa gluteos y cadena posterior.',
+          detail: 'Piensa en tension controlada, no en velocidad.',
+          durationSeconds: 60,
+          tone: 'mint',
         },
       ],
       warmupRest: {
-        title: 'Respira y prepárate',
-        subtitle: 'En breve empieza la parte principal.',
-        detail: 'Toma aire, suelta tensión y prepara tu primera serie.',
-        durationSeconds: 20,
+        title: 'Prepara el primer bloque',
+        subtitle: 'Respira y coloca tu postura.',
+        detail: 'En un minuto empieza la parte principal.',
+        durationSeconds: 60,
         tone: 'amber',
       },
       cooldown: [
         {
-          title: 'Estiramiento de glúteo',
+          title: 'Descarga de gluteos',
           subtitle: 'Cruza una pierna y abre la cadera con suavidad.',
-          detail: 'Mantén la respiración larga y deja que baje el pulso.',
-          durationSeconds: 35,
+          detail: 'Mantén respiraciones largas y deja que baje el pulso.',
+          durationSeconds: 60,
           tone: 'blue',
         },
         {
-          title: 'Descarga de isquios',
-          subtitle: 'Flexión suave con rodillas blandas.',
-          detail: 'No rebotes. Busca una sensación ligera de alivio.',
-          durationSeconds: 35,
+          title: 'Isquios y tobillos',
+          subtitle: 'Flexion suave y movilidad final.',
+          detail: 'Busca alivio, no profundidad extrema.',
+          durationSeconds: 60,
           tone: 'mint',
         },
       ],
@@ -217,40 +224,47 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
     return {
       warmup: [
         {
-          title: 'Respiración con abdomen activo',
-          subtitle: 'Activa la zona media antes de empezar.',
-          detail: 'Inhala profundo, exhala largo y lleva el ombligo hacia dentro.',
-          durationSeconds: 30,
+          title: 'Respiracion y brace',
+          subtitle: 'Activa el abdomen antes de mover.',
+          detail: 'Inhala profundo, exhala largo y crea tension ligera en el centro.',
+          durationSeconds: 60,
           tone: 'mint',
         },
         {
-          title: 'Movilidad columna',
-          subtitle: 'Gato-vaca suave y controlado.',
-          detail: 'Mueve la espalda segmento a segmento, sin forzar el cuello.',
-          durationSeconds: 35,
+          title: 'Movilidad de columna',
+          subtitle: 'Gato-vaca y rotacion suave.',
+          detail: 'Segmenta la espalda sin forzar el cuello.',
+          durationSeconds: 60,
           tone: 'blue',
+        },
+        {
+          title: 'Activacion anti-extension',
+          subtitle: 'Prepara pelvis y costillas.',
+          detail: 'Piensa en estabilidad antes que en velocidad.',
+          durationSeconds: 60,
+          tone: 'mint',
         },
       ],
       warmupRest: {
         title: 'Centro listo',
         subtitle: 'Empieza el bloque principal en breve.',
         detail: 'Mantén abdomen activo y hombros relajados.',
-        durationSeconds: 18,
+        durationSeconds: 60,
         tone: 'amber',
       },
       cooldown: [
         {
-          title: 'Rotación suave',
-          subtitle: 'Deja que el tronco se afloje.',
-          detail: 'Respira profundo mientras sueltas la tensión del core.',
-          durationSeconds: 30,
+          title: 'Rotacion suave',
+          subtitle: 'Afloja el tronco y libera tension.',
+          detail: 'Respira profundo mientras la zona media baja revoluciones.',
+          durationSeconds: 60,
           tone: 'blue',
         },
         {
-          title: 'Postura del niño',
-          subtitle: 'Alarga espalda y caja torácica.',
-          detail: 'Quédate quieto y deja que el ritmo baje solo.',
-          durationSeconds: 35,
+          title: 'Postura del nino',
+          subtitle: 'Alarga espalda y caja toracica.',
+          detail: 'Quédate quieto y termina largo.',
+          durationSeconds: 60,
           tone: 'mint',
         },
       ],
@@ -260,40 +274,47 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
   return {
     warmup: [
       {
-        title: 'Círculos de brazos',
+        title: 'Circulos de brazos',
         subtitle: 'Abre hombros y pecho antes de empujar.',
-        detail: 'Hazlos amplios y fluidos. La pantalla avanzará sola.',
-        durationSeconds: 30,
+        detail: 'Hazlos amplios y fluidos.',
+        durationSeconds: 60,
         tone: 'mint',
       },
       {
-        title: 'Activación escapular',
-        subtitle: 'Protrae y retrae hombros con control.',
-        detail: 'Piensa en preparar hombros, pecho y brazos para la primera serie.',
-        durationSeconds: 35,
+        title: 'Activacion escapular',
+        subtitle: 'Protrae y retrae con control.',
+        detail: 'Piensa en preparar hombros, pecho y espalda alta.',
+        durationSeconds: 60,
         tone: 'blue',
+      },
+      {
+        title: 'Serie tecnica',
+        subtitle: 'Ensaya el patron principal sin prisa.',
+        detail: 'Prepara articulaciones y ritmo antes del bloque duro.',
+        durationSeconds: 60,
+        tone: 'mint',
       },
     ],
     warmupRest: {
-      title: 'Ajusta respiración',
+      title: 'Ajusta respiracion',
       subtitle: 'En breve inicia el ejercicio principal.',
       detail: 'Sacude brazos y entra al primer bloque con control.',
-      durationSeconds: 20,
+      durationSeconds: 60,
       tone: 'amber',
     },
     cooldown: [
       {
         title: 'Apertura de pecho',
         subtitle: 'Descomprime hombros y parte frontal del torso.',
-        detail: 'Mantén clavículas abiertas y baja la respiración.',
-        durationSeconds: 35,
+        detail: 'Mantén claviculas abiertas y baja la respiracion.',
+        durationSeconds: 60,
         tone: 'blue',
       },
       {
-        title: 'Estiramiento de espalda alta',
+        title: 'Espalda alta',
         subtitle: 'Abraza el frente y redondea suave.',
-        detail: 'Quédate quieto, suelta cuello y termina largo.',
-        durationSeconds: 35,
+        detail: 'Suelta cuello y termina largo.',
+        durationSeconds: 60,
         tone: 'mint',
       },
     ],
@@ -301,14 +322,9 @@ function getGuidedFlowCopy(category: GuidedRoutinePresetId): GuidedFlowCopy {
 }
 
 function scoreExerciseForPreset(exercise: ExerciseDefinition, preset: RoutinePresetMeta) {
-  if (!exercise.isBodyweight || exercise.mechanic === 'isometric') {
-    return -1;
-  }
-
   const normalizedId = normalizeText(exercise.id);
   const normalizedName = normalizeText(exercise.name);
   const haystack = `${normalizedId} ${normalizedName}`;
-
   let score = 0;
 
   if (preset.preferredIds.some((preferredId) => normalizeText(preferredId) === normalizedId)) {
@@ -331,6 +347,16 @@ function scoreExerciseForPreset(exercise: ExerciseDefinition, preset: RoutinePre
     score += 60;
   }
 
+  if (exercise.isBodyweight) {
+    score += 24;
+  } else {
+    score += 10;
+  }
+
+  if (exercise.mechanic === 'isometric') {
+    score += preset.id === 'core' ? 30 : 8;
+  }
+
   if (preset.id === 'core' && exercise.mechanic === 'isolation') {
     score += 25;
   }
@@ -351,15 +377,51 @@ function dedupeExercises(exercises: ExerciseDefinition[]) {
   });
 }
 
+function hasProgressionSignal(log: WorkoutLog, session: WorkoutSession) {
+  if (session.effort > 3) {
+    return false;
+  }
+
+  const trackedSets = getTrackedSets(log);
+  return trackedSets.length > 0 && trackedSets.every((set) => set.reps > 12);
+}
+
+function getProgressionHits(exerciseId: string, recentSessions: WorkoutSession[]) {
+  return recentSessions.filter((session) => {
+    const log = session.logs.find((entry) => entry.exerciseId === exerciseId);
+    return log ? hasProgressionSignal(log, session) : false;
+  }).length;
+}
+
+function getPresetSetCount(exerciseId: string, recentSessions: WorkoutSession[]) {
+  const progressionHits = getProgressionHits(exerciseId, recentSessions);
+  if (progressionHits >= 4) {
+    return 4;
+  }
+
+  if (progressionHits >= 2) {
+    return 3;
+  }
+
+  return 2;
+}
+
+function getRecentSessions(sessions: WorkoutSession[], referenceDate = new Date()) {
+  return sessions.filter((session) => differenceInDays(referenceDate, new Date(session.performedAt)) <= 14);
+}
+
 export function buildGuidedRoutinePreset(
   exercises: ExerciseDefinition[],
   presetId: GuidedRoutinePresetId,
+  recentSessions: WorkoutSession[] = [],
+  referenceDate = new Date(),
 ): GuidedRoutinePreset {
   const preset = ROUTINE_PRESET_META.find((entry) => entry.id === presetId);
   if (!preset) {
     throw new Error(`Unknown routine preset: ${presetId}`);
   }
 
+  const recent = getRecentSessions(recentSessions, referenceDate);
   const rankedExercises = dedupeExercises(exercises)
     .map((exercise) => ({
       exercise,
@@ -375,13 +437,13 @@ export function buildGuidedRoutinePreset(
     });
 
   const selectedExercises = rankedExercises.slice(0, 3).map((entry) => entry.exercise);
-
   const logs = selectedExercises.map((exercise) => {
     const log = buildWorkoutLog(exercise);
+    const setCount = getPresetSetCount(exercise.id, recent);
 
-    log.sets = Array.from({ length: preset.setCount }, () => createWorkoutSet({
+    log.sets = Array.from({ length: setCount }, () => createWorkoutSet({
       reps: preset.defaultReps,
-      weight: 0,
+      weight: exercise.isBodyweight ? 0 : 8,
     }));
 
     return log;
@@ -426,8 +488,8 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
       title: log.exerciseName,
       subtitle: `${setIndex + 1} de ${log.sets.length} · ${formatMuscleGroupLabel(log.muscleGroup)}`,
       detail: log.isBodyweight
-        ? 'No necesitas registrar peso. Haz las repeticiones y pulsa cuando termines.'
-        : 'Sigue la carga objetivo y marca la serie al terminar.',
+        ? 'No necesitas registrar peso. Completa las repeticiones con tecnica limpia y marca la serie al terminar.'
+        : 'Sigue la carga objetivo, mantén el control y registra la serie al terminar.',
       logId: log.id,
       setIndex,
       totalSets: log.sets.length,
@@ -435,7 +497,7 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
       weight: set.weight,
       isBodyweight: log.isBodyweight,
       muscleGroup: log.muscleGroup,
-    }))
+    })),
   );
 
   mainSteps.forEach((step, index) => {
@@ -446,9 +508,9 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
         id: `rest-${index}`,
         kind: 'rest',
         title: 'Descanso guiado',
-        subtitle: 'Respira, suelta tensión y prepárate.',
+        subtitle: 'Respira, suelta tension y prepara la siguiente serie.',
         detail: `Siguiente: ${mainSteps[index + 1]?.title ?? 'siguiente bloque'}`,
-        durationSeconds: draftSession.restDurationSeconds,
+        durationSeconds: draftSession.restDurationSeconds || DEFAULT_REST_DURATION_SECONDS,
         tone: 'amber',
       });
     }

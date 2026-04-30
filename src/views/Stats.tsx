@@ -15,8 +15,8 @@ import {
   selectPersonalRecords,
   selectPrimaryWeeklyVolume,
   selectProgressMilestones,
+  selectRecoveryConsistencyStreak,
   selectSleepChartData,
-  selectTrainingStreak,
 } from '@/store/selectors';
 
 function MetricTile({
@@ -51,7 +51,7 @@ function MetricTile({
 export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
   const storeData = useStoreData();
   const { exercises } = useExerciseCatalog();
-  const streak = useMemo(() => selectTrainingStreak(storeData), [storeData]);
+  const streak = useMemo(() => selectRecoveryConsistencyStreak(storeData), [storeData]);
   const weeklyVolume = useMemo(() => selectPrimaryWeeklyVolume(storeData), [storeData]);
   const sleepChartData = useMemo(() => selectSleepChartData(storeData), [storeData]);
   const insights = useMemo(() => selectCoachInsights(storeData), [storeData]);
@@ -109,7 +109,7 @@ export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">Resumen semanal</p>
               <h2 className="mt-2 text-3xl font-black leading-tight tracking-tight text-white">
-                {streak > 0 ? `${streak} día${streak === 1 ? '' : 's'} en ritmo` : 'Empieza a construir tu racha'}
+                {streak > 0 ? `${streak} dia${streak === 1 ? '' : 's'} de constancia` : 'Empieza a construir tu constancia'}
               </h2>
               <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-400">
                 {featuredInsight?.body ?? 'Cada registro nuevo mejora cómo entendemos tu tolerancia y recuperación.'}
@@ -126,9 +126,9 @@ export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MetricTile
-              label="Racha"
+              label="Constancia"
               value={String(streak)}
-              detail="Entrenar seguido importa más que una sola sesión perfecta."
+              detail="Se mantiene si entrenas o registras recuperacion."
               icon={TrendingUp}
               iconClass="text-[#6EE7B7]"
             />

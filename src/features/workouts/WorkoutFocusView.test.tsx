@@ -24,7 +24,7 @@ const DRAFT_SESSION: DraftSession = {
 };
 
 function findTimerValue(value: number) {
-  return screen.getByText((_, node) => node?.textContent === `${value}s`, { selector: 'span' });
+  return screen.getAllByText((_, node) => node?.textContent === `${value}s`).at(-1);
 }
 
 describe('WorkoutFocusView timer', () => {
@@ -54,7 +54,7 @@ describe('WorkoutFocusView timer', () => {
       />,
     );
 
-    expect(findTimerValue(30)).toBeInTheDocument();
+    expect(findTimerValue(60)).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -67,7 +67,7 @@ describe('WorkoutFocusView timer', () => {
       />,
     );
 
-    expect(findTimerValue(29)).toBeInTheDocument();
+    expect(findTimerValue(59)).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -80,6 +80,6 @@ describe('WorkoutFocusView timer', () => {
       />,
     );
 
-    expect(findTimerValue(28)).toBeInTheDocument();
+    expect(findTimerValue(58)).toBeInTheDocument();
   });
 });

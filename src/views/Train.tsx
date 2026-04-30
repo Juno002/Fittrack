@@ -14,7 +14,7 @@ import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import { buildWorkoutLog } from '@/lib/workout';
 import { useStore } from '@/store';
-import { selectFatigueSummary } from '@/store/selectors';
+import { selectReadinessSummary } from '@/store/selectors';
 import type { ExerciseDefinition, MuscleGroup, WorkoutTemplate } from '@/store/types';
 
 interface TrainProps {
@@ -27,8 +27,9 @@ const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoul
 export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
   const data = useStoreData();
-  const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
-  const hasTrainingData = data.sessions.length > 0;
+  const readiness = useMemo(() => selectReadinessSummary(data), [data]);
+  const fatigue = readiness.localFatigue;
+  const hasTrainingData = readiness.hasTrainingData;
   const draftSession = useStore((state) => state.draftSession);
   const startDraftSession = useStore((state) => state.startDraftSession);
   const addExerciseToDraft = useStore((state) => state.addExerciseToDraft);
@@ -46,9 +47,9 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
   const deferredQuery = useDeferredValue(searchQuery);
   const routinePresets = useMemo(
     () => (['upper', 'lower', 'core'] as GuidedRoutinePresetId[])
-      .map((presetId) => buildGuidedRoutinePreset(exercises, presetId))
+      .map((presetId) => buildGuidedRoutinePreset(exercises, presetId, data.sessions))
       .filter((preset) => preset.logs.length > 0),
-    [exercises],
+    [data.sessions, exercises],
   );
 
   const filteredExercises = useMemo(() => {
@@ -161,6 +162,14 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
     setActiveFilter(filter);
     setSearchQuery('');
   };
+
+  const readinessTip = readiness.confidence === 'low'
+    ? 'El catalogo esta en modo base. Registra sueno o un quick log antes de elegir una sesion exigente.'
+    : readiness.confidence === 'medium'
+      ? 'Tu recomendacion es util, pero puede afinarse mas si registras senales recientes.'
+      : readiness.readinessGate === 'recover'
+        ? 'Aunque algun grupo parezca fresco, hoy el cuello de botella es global. Prioriza movilidad o trabajo muy controlado.'
+        : 'Usa el catalogo para mover el foco hacia los grupos mas frescos y evitar lo que viene mas fatigado.';
 
   return (
     <div className="app-screen flex h-full flex-col overflow-hidden">
@@ -307,6 +316,8 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                     const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
                     const statusLabel = !hasTrainingData
                       ? 'Base'
+                      : readiness.readinessGate === 'recover' && exerciseFatigue < 45
+                        ? 'Global bajo'
                       : exerciseFatigue >= 70
                         ? 'Recupera'
                         : exerciseFatigue >= 45
@@ -314,6 +325,8 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                           : 'Listo';
                     const statusClass = !hasTrainingData
                       ? 'text-zinc-400'
+                      : readiness.readinessGate === 'recover' && exerciseFatigue < 45
+                        ? 'text-[#F9B06E]'
                       : exerciseFatigue >= 70
                         ? 'text-[#F97373]'
                         : exerciseFatigue >= 45
@@ -451,9 +464,7 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#6EE7B7]">Tip de readiness</p>
               <p className="mt-2 text-sm leading-relaxed text-zinc-200">
-                {hasTrainingData
-                  ? 'Si hoy un grupo marca más de 70% de fatiga, usa esta pantalla para elegir alternativas del catálogo en lugar de forzar la rutina.'
-                  : 'Mientras no haya historial, esta pantalla se mantiene neutral y te deja empezar por rutinas base o ejercicios corporales sin asumir fatiga previa.'}
+                {readinessTip}
               </p>
             </div>
           </div>

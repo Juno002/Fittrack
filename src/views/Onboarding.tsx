@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, ChevronLeft, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,8 @@ import {
   formatTrainingDay,
   formatTrainingDays,
 } from '@/lib/display';
+import { getSuggestedNutritionTargets } from '@/lib/recoveryModel';
 import {
-  calculateBodyMassIndex,
-  getBodyMassIndexLabel,
   getDisplayWeight,
   getStorageWeight,
 } from '@/lib/units';
@@ -51,12 +50,14 @@ export function Onboarding() {
   const updateProfile = useStore((state) => state.updateProfile);
   const updateSettings = useStore((state) => state.updateSettings);
   const setCalorieGoal = useStore((state) => state.setCalorieGoal);
+  const setMacrosGoal = useStore((state) => state.setMacrosGoal);
   const logBodyWeight = useStore((state) => state.logBodyWeight);
 
   const [step, setStep] = useState(1);
   const [profileDraft, setProfileDraft] = useState<UserProfile>(storeProfile);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(copySettings(storeSettings));
   const [calorieGoalDraft, setCalorieGoalDraft] = useState(storeCalories);
+  const [hasCustomCalorieGoal, setHasCustomCalorieGoal] = useState(storeCalories !== 2000);
   const [displayWeightDraft, setDisplayWeightDraft] = useState(
     getDisplayWeight(storeProfile.weight, storeSettings.unitSystem),
   );
@@ -83,10 +84,19 @@ export function Onboarding() {
     [displayWeightDraft, settingsDraft.unitSystem],
   );
 
-  const bodyMassIndex = useMemo(
-    () => calculateBodyMassIndex(profileWeightKg, profileDraft.height),
-    [profileDraft.height, profileWeightKg],
+  const suggestedTargets = useMemo(
+    () => getSuggestedNutritionTargets(
+      { ...profileDraft, weight: profileWeightKg },
+      settingsDraft.trainingSchedule,
+    ),
+    [profileDraft, profileWeightKg, settingsDraft.trainingSchedule],
   );
+
+  useEffect(() => {
+    if (!hasCustomCalorieGoal && calorieGoalDraft !== suggestedTargets.calories) {
+      setCalorieGoalDraft(suggestedTargets.calories);
+    }
+  }, [calorieGoalDraft, hasCustomCalorieGoal, suggestedTargets.calories]);
 
   const finishOnboarding = () => {
     const finalWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
@@ -101,6 +111,7 @@ export function Onboarding() {
       weight: finalWeightKg,
     });
     setCalorieGoal(calorieGoalDraft);
+    setMacrosGoal(suggestedTargets.macros);
     logBodyWeight(finalWeightKg);
   };
 
@@ -177,7 +188,7 @@ export function Onboarding() {
               <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Crear perfil local</p>
               <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Tu baseline física</h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                Empezamos por tu nombre, edad, estatura y peso para estimar tu IMC y dejar una base limpia desde el primer día.
+                Empezamos por tu nombre, edad, estatura y peso para dejar una base útil para recuperación, nutrición y carga desde el primer día.
               </p>
 
               <div className="mt-8 space-y-6">
@@ -268,18 +279,28 @@ export function Onboarding() {
                 <div className="rounded-[2rem] border border-[#6EE7B7]/18 bg-[#6EE7B7]/8 p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#6EE7B7]">IMC estimado</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#6EE7B7]">Baseline util</p>
                       <p className="mt-3 text-4xl font-black tracking-tighter text-white">
-                        {bodyMassIndex === null ? '--' : bodyMassIndex.toFixed(1)}
+                        {Math.round(displayWeightDraft)} {settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'}
                       </p>
                     </div>
                     <div className="rounded-[1.4rem] border border-white/8 bg-white/6 px-4 py-3 text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Lectura</p>
-                      <p className="mt-2 text-sm font-black text-white">{getBodyMassIndexLabel(bodyMassIndex)}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Prote sugerida</p>
+                      <p className="mt-2 text-sm font-black text-white">{suggestedTargets.macros.protein} g</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-[1.4rem] border border-white/8 bg-white/6 px-4 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Energia</p>
+                      <p className="mt-2 text-sm font-black text-white">{suggestedTargets.calories} kcal</p>
+                    </div>
+                    <div className="rounded-[1.4rem] border border-white/8 bg-white/6 px-4 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Frecuencia</p>
+                      <p className="mt-2 text-sm font-black text-white">{settingsDraft.trainingSchedule.days.length} dias</p>
                     </div>
                   </div>
                   <p className="mt-4 text-sm leading-relaxed text-zinc-200">
-                    Es una referencia inicial para contextualizar tu baseline. Luego el sistema se apoyará más en tu recuperación real y tus sesiones.
+                    Esta baseline sirve para sugerir proteína, calorías y ritmo semanal. Luego el sistema se apoyará todavía más en tu recuperación real y tus sesiones.
                   </p>
                 </div>
 
@@ -415,11 +436,23 @@ export function Onboarding() {
               <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#6EE7B7]">Baseline</p>
               <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Arranca con una base simple</h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                Define un objetivo calórico y deja que el score de recuperación marque el ritmo del día.
+                Te sugerimos una energia base y una proteina util para recuperar mejor. Si quieres, ajusta solo las calorias.
               </p>
 
               <div className="mt-8 rounded-[2.5rem] border border-white/8 bg-white/6 p-6">
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorías diarias</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorias diarias</p>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                      Sugerencia actual: {suggestedTargets.calories} kcal segun tu perfil y frecuencia semanal.
+                    </p>
+                  </div>
+                  {!hasCustomCalorieGoal ? (
+                    <span className="rounded-full border border-[#6EE7B7]/16 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#6EE7B7]">
+                      Sugerido
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-4 text-5xl font-black tracking-tighter text-white">{calorieGoalDraft}</p>
                 <input
                   type="range"
@@ -427,12 +460,30 @@ export function Onboarding() {
                   max="4500"
                   step="50"
                   value={calorieGoalDraft}
-                  onChange={(event) => setCalorieGoalDraft(Number(event.target.value))}
+                  onChange={(event) => {
+                    setHasCustomCalorieGoal(true);
+                    setCalorieGoalDraft(Number(event.target.value));
+                  }}
                   className="mt-6 h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[#6EE7B7]"
                 />
                 <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                   <span>1200</span>
                   <span>4500</span>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-[1.8rem] border border-white/8 bg-white/6 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Proteina</p>
+                  <p className="mt-2 text-2xl font-black text-white">{suggestedTargets.macros.protein} g</p>
+                </div>
+                <div className="rounded-[1.8rem] border border-white/8 bg-white/6 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Carbs</p>
+                  <p className="mt-2 text-2xl font-black text-white">{suggestedTargets.macros.carbs} g</p>
+                </div>
+                <div className="rounded-[1.8rem] border border-white/8 bg-white/6 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">Grasa</p>
+                  <p className="mt-2 text-2xl font-black text-white">{suggestedTargets.macros.fat} g</p>
                 </div>
               </div>
 
@@ -455,7 +506,7 @@ export function Onboarding() {
               <div className="mt-6 space-y-3 rounded-[2.2rem] border border-white/8 bg-white/6 p-5">
                 <p className="text-sm font-bold text-white">Perfil local</p>
                 <p className="text-sm text-zinc-300">
-                  {profileDraft.name.trim() || 'Perfil local'} · {profileDraft.age} años · {profileDraft.height} cm · {bodyMassIndex === null ? 'IMC --' : `IMC ${bodyMassIndex.toFixed(1)}`}
+                  {profileDraft.name.trim() || 'Perfil local'} · {profileDraft.age} anos · {profileDraft.height} cm · {Math.round(displayWeightDraft)} {settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'}
                 </p>
                 <p className="text-sm font-bold text-white">Señales activas</p>
                 <p className="text-sm text-zinc-300">
@@ -467,6 +518,10 @@ export function Onboarding() {
                 <p className="text-sm font-bold text-white">Horario</p>
                 <p className="text-sm text-zinc-300">
                   {formatTrainingDays(settingsDraft.trainingSchedule.days)} · {formatPreferredTrainingTime(settingsDraft.trainingSchedule.preferredTime)}
+                </p>
+                <p className="text-sm font-bold text-white">Base sugerida</p>
+                <p className="text-sm text-zinc-300">
+                  {calorieGoalDraft} kcal · {suggestedTargets.macros.protein} g proteina
                 </p>
               </div>
             </div>

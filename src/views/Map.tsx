@@ -30,6 +30,10 @@ export function Map({ onOpenWorkout, onOpenProfile }: MapProps) {
   );
 
   const handleStartFocusedSession = () => {
+    if (readiness.readinessGate === 'recover') {
+      return;
+    }
+
     startDraftSession({
       name: mapFocus.hasTrainingData ? mapFocus.title : 'Sesión inicial',
       logs: recommendedExercises.slice(0, 2).map((exercise) => buildWorkoutLog(exercise)),
@@ -75,8 +79,9 @@ export function Map({ onOpenWorkout, onOpenProfile }: MapProps) {
           <Button
             className="mt-5 h-14 w-full rounded-[1.75rem] bg-[#6EE7B7] text-[10px] font-black uppercase tracking-[0.3em] text-[#08111C] hover:bg-[#62e6b0]"
             onClick={handleStartFocusedSession}
+            disabled={readiness.readinessGate === 'recover'}
           >
-            Empezar sesión enfocada
+            {readiness.readinessGate === 'recover' ? 'Hoy toca recuperar' : 'Empezar sesión enfocada'}
             <ArrowRight className="ml-2 size-4" />
           </Button>
         </section>

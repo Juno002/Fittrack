@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useStoreData } from '@/hooks/useStoreData';
 import {
+  clampRestDuration,
+  DEFAULT_REST_DURATION_SECONDS,
+  getSuggestedNutritionTargets,
+} from '@/lib/recoveryModel';
+import {
   formatPreferredTrainingTime,
   formatTrainingDay,
 } from '@/lib/display';
 import {
-  calculateBodyMassIndex,
-  getBodyMassIndexLabel,
   getDisplayWeight,
   getStorageWeight,
 } from '@/lib/units';
@@ -117,9 +120,13 @@ export function Profile({ onBack }: ProfileProps) {
     : 'Sin días definidos';
   const reminderLabel = settingsDraft.reminders.enabled ? settingsDraft.reminders.time : 'Off';
   const weightLabel = `${displayWeightDraft} ${settingsDraft.unitSystem === 'metric' ? 'kg' : 'lb'}`;
-  const bodyMassIndex = calculateBodyMassIndex(
-    getStorageWeight(displayWeightDraft, settingsDraft.unitSystem),
-    profileDraft.height,
+  const profileWeightKg = getStorageWeight(displayWeightDraft, settingsDraft.unitSystem);
+  const suggestedTargets = useMemo(
+    () => getSuggestedNutritionTargets(
+      { ...profileDraft, weight: profileWeightKg },
+      settingsDraft.trainingSchedule,
+    ),
+    [profileDraft, profileWeightKg, settingsDraft.trainingSchedule],
   );
   const profileFieldErrors = useMemo(
     () => validateProfileFields(profileDraft, displayWeightDraft, settingsDraft.unitSystem),
@@ -269,9 +276,9 @@ export function Profile({ onBack }: ProfileProps) {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <ProfileSnapshotTile label="Perfil" value={profileDraft.name.trim() || 'Sin nombre'} detail="Nombre local guardado solo en este dispositivo." />
-            <ProfileSnapshotTile label="IMC" value={bodyMassIndex === null ? '--' : bodyMassIndex.toFixed(1)} detail={getBodyMassIndexLabel(bodyMassIndex)} />
             <ProfileSnapshotTile label="Peso actual" value={weightLabel} detail="Se usa para tu perfil local y evolución." />
-            <ProfileSnapshotTile label="Altura" value={`${profileDraft.height} cm`} detail="Parte de tu baseline corporal actual." />
+            <ProfileSnapshotTile label="Prote sugerida" value={`${suggestedTargets.macros.protein} g`} detail="Objetivo base para recuperar y sostener progreso." />
+            <ProfileSnapshotTile label="Energia sugerida" value={`${suggestedTargets.calories} kcal`} detail="Estimacion inicial segun tu perfil y frecuencia." />
             <ProfileSnapshotTile label="Días activos" value={String(settingsDraft.trainingSchedule.days.length)} detail={scheduleDaysLabel} />
             <ProfileSnapshotTile label="Reminder" value={reminderLabel} detail="Preferencia local para recordarte entrenar." />
           </div>
@@ -390,6 +397,12 @@ export function Profile({ onBack }: ProfileProps) {
           <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Nutrición y descanso</h2>
 
           <div className="mt-5 space-y-4">
+            <div className="rounded-[1.7rem] border border-[#6EE7B7]/16 bg-[#6EE7B7]/8 px-4 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#6EE7B7]">Sugerencia actual</p>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+                {suggestedTargets.calories} kcal · {suggestedTargets.macros.protein} g proteina · {suggestedTargets.macros.carbs} g carbs · {suggestedTargets.macros.fat} g grasa
+              </p>
+            </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Calorías diarias</Label>
               <Input
@@ -418,10 +431,12 @@ export function Profile({ onBack }: ProfileProps) {
               <Label className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">Descanso por defecto</Label>
               <Input
                 type="number"
-                value={settingsDraft.defaultRestDuration ?? 60}
+                min={45}
+                max={180}
+                value={settingsDraft.defaultRestDuration ?? DEFAULT_REST_DURATION_SECONDS}
                 onChange={(event) => setSettingsDraft((current) => ({
                   ...current,
-                  defaultRestDuration: Math.max(15, Number(event.target.value)),
+                  defaultRestDuration: clampRestDuration(Number(event.target.value)),
                 }))}
                 className="h-14 rounded-[1.5rem] border-none bg-[#0b1320] px-4 text-lg font-black text-white"
               />

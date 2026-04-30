@@ -1,6 +1,7 @@
 import { differenceInSeconds } from 'date-fns';
 
 import { toDayKey } from '@/lib/dates';
+import { DEFAULT_REST_DURATION_SECONDS } from '@/lib/recoveryModel';
 import type {
   DraftSession,
   DraftSessionSeed,
@@ -63,7 +64,7 @@ export function createDraftSession(seed?: DraftSessionSeed): DraftSession {
       ...log,
       sets: log.sets.map((set) => sanitizeWorkoutSet(set)),
     })) ?? [],
-    restDurationSeconds: seed?.restDurationSeconds ?? 60,
+    restDurationSeconds: seed?.restDurationSeconds ?? DEFAULT_REST_DURATION_SECONDS,
     restTimerEndsAt: seed?.restTimerEndsAt ?? null,
   };
 }
@@ -137,13 +138,14 @@ export function finalizeDraftSession(draftSession: DraftSession, effort: number)
   };
 }
 
-/**
- * Estimates 1 Rep Max using Brzycki formula: weight / (1.0278 - 0.0278 * reps)
- * Only valid for reps > 0 and typically accurate up to 10-12 reps.
- */
 export function calculate1RM(weight: number, reps: number): number {
-  if (reps <= 0) return 0;
-  if (reps === 1) return weight;
-  
-  return weight / (1.0278 - (0.0278 * Math.min(10, reps)));
+  if (reps <= 0) {
+    return 0;
+  }
+
+  if (reps === 1) {
+    return weight;
+  }
+
+  return weight * (1 + (Math.min(10, reps) / 30));
 }

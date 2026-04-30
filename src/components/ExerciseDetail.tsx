@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
-import { selectFatigueSummary } from '@/store/selectors';
+import { selectReadinessSummary } from '@/store/selectors';
 import type { ExerciseDefinition } from '@/store/types';
 import { MuscleHighlight } from '@/components/MuscleHighlight';
 
@@ -20,13 +20,19 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
   const [activeTab, setActiveTab] = useState<'como' | 'errores' | 'progresiones' | 'video'>('como');
   const data = useStoreData();
   
-  const fatigue = useMemo(() => selectFatigueSummary(data), [data]);
+  const readiness = useMemo(() => selectReadinessSummary(data), [data]);
+  const fatigue = readiness.localFatigue;
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
   
   if (!exercise) return null;
 
   const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
-  const isReady = exerciseFatigue < 45;
+  const isReady = readiness.readinessGate !== 'recover' && exerciseFatigue < 45;
+  const readinessCaption = readiness.readinessGate === 'recover'
+    ? 'Readiness global bajo'
+    : isReady
+      ? 'Listo para entrenar'
+      : 'Requiere descanso';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,10 +84,19 @@ export function ExerciseDetail({ exercise, open, onOpenChange, onAddWorkout }: E
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Fatiga actual</p>
               <p className="mt-1 text-xl font-black text-white">{Math.round(exerciseFatigue)}%</p>
               <p className={`mt-1 text-[10px] font-bold uppercase tracking-[0.2em] ${isReady ? 'text-[#6EE7B7]' : 'text-red-400'}`}>
-                {isReady ? 'Listo para entrenar' : 'Requiere descanso'}
+                {readinessCaption}
               </p>
             </div>
           </div>
+
+          {readiness.readinessGate === 'recover' ? (
+            <div className="mx-6 mb-6 rounded-[1.8rem] border border-[#F9B06E]/20 bg-[#F9B06E]/8 px-4 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#F9B06E]">Lectura global</p>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+                Este musculo puede verse disponible localmente, pero tu readiness global esta bajo. Hoy conviene usarlo solo de forma suave o elegir recuperacion activa.
+              </p>
+            </div>
+          ) : null}
 
           {/* Graphics Area */}
           <div className="px-6 mb-6">

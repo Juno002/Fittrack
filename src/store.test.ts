@@ -210,7 +210,7 @@ describe('daily planning selectors', () => {
 
     expect(dashboardCards.readiness.hasTrainingData).toBe(false);
     expect(dashboardCards.readiness.readiness).toBeLessThan(100);
-    expect(todayPlan.title).toBe('Sesión de arranque');
+    expect(todayPlan.title).toBe('Buen dia para empezar');
     expect(todayPlan.ctaLabel).toBe('Crear primera rutina');
     expect(dashboardCards.mapFocus.highestFatigueMuscle).toBeNull();
     expect(dashboardCards.mapFocus.title).toBe('Aún no hay carga acumulada');

@@ -211,10 +211,20 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
   const sessionDurationLabel = cards.todaySummary.totalDurationSeconds > 0
     ? `${Math.round(cards.todaySummary.totalDurationSeconds / 60)} min`
     : `${cards.readiness.suggestedDurationMinutes} min`;
+  const confidenceMessage = cards.readiness.confidence === 'low'
+    ? 'Registra sueño o un check-in para afinar tu recomendación de hoy.'
+    : cards.readiness.confidence === 'medium'
+      ? 'La recomendación usa tu historial, pero faltan señales recientes para afinarla más.'
+      : null;
 
   const handleStartSession = () => {
     if (data.draftSession) {
       onOpenWorkout();
+      return;
+    }
+
+    if (cards.readiness.readinessGate === 'recover') {
+      onNavigate('train');
       return;
     }
 
@@ -284,6 +294,11 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
                   {cards.readiness.coachBody}
                 </p>
+                {confidenceMessage ? (
+                  <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-300">
+                    {confidenceMessage}
+                  </p>
+                ) : null}
 
                 <div className="mt-5 grid grid-cols-3 gap-3">
                   <MetricPill label="Duración" value={sessionDurationLabel} />
@@ -448,7 +463,9 @@ export function Dashboard({ onOpenWorkout, onOpenProfile, onNavigate }: Dashboar
 
           {recommendedExercises.length === 0 ? (
             <div className="mt-5 rounded-[1.8rem] border border-dashed border-white/8 bg-[#0b1320] px-4 py-8 text-center text-sm text-zinc-500">
-              Registra entrenamientos para que podamos proponerte opciones más finas.
+              {cards.readiness.readinessGate === 'recover'
+                ? 'Hoy evitamos sembrar una sesion automatica. Usa movilidad, respiracion o registra señales antes de elegir algo exigente.'
+                : 'Registra entrenamientos para que podamos proponerte opciones más finas.'}
             </div>
           ) : (
             <div className="mt-5 space-y-3">

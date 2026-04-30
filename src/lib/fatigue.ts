@@ -1,10 +1,18 @@
-import { differenceInHours, subDays, startOfWeek, isAfter } from 'date-fns';
+import { differenceInHours, endOfWeek, startOfWeek } from 'date-fns';
 
+import {
+  ACUTE_FATIGUE_WINDOW_HOURS,
+  getAgeRecoveryPenaltyHours,
+  getBodyweightLoadFactor,
+  getSleepRecoveryPenaltyHours,
+  getRollingSleepSummary,
+  RECOVERY_MUSCLE_GROUP_ORDER,
+} from '@/lib/recoveryModel';
 import { getTrackedSetCount } from '@/lib/workout';
 import type { MuscleGroup, SleepLog, UserProfile, WorkoutSession } from '@/store/types';
 
-export const RECOVERY_HOURS = 48; // legacy export, not really used linearly anymore
-export const BASE_RECOVERY_PER_HOUR = 100 / RECOVERY_HOURS; // legacy
+export const RECOVERY_HOURS = 48;
+export const BASE_RECOVERY_PER_HOUR = 100 / RECOVERY_HOURS;
 
 interface FatigueInputs {
   sessions: WorkoutSession[];
@@ -27,6 +35,13 @@ interface MRVThresholds {
   mavMin: number;
   mavMax: number;
   mrv: number;
+}
+
+interface DetailedContribution extends FatigueContribution {
+  muscleGroup: MuscleGroup;
+  sourceMuscleGroup: MuscleGroup;
+  hoursSince: number;
+  weighting: number;
 }
 
 export const VOLUME_THRESHOLDS: Record<MuscleGroup, MRVThresholds> = {
@@ -54,38 +69,66 @@ export const BASE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
   core: 48,
 };
 
-export function getSleepModifier(sleepLogs: SleepLog[], referenceDate = new Date()) {
-  const recentLogs = sleepLogs.filter((log) => new Date(log.loggedAt) >= subDays(referenceDate, 3));
-  const averageHours = recentLogs.length > 0
-    ? recentLogs.reduce((total, log) => total + log.durationHours, 0) / recentLogs.length
-    : 8;
-  
-  if (averageHours < 6) return 0.6;
-  if (averageHours < 7) return 0.8;
-  return 1.0;
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
-// Fase 1 (0-24h): recuperación rápida ~60% del total
-// Fase 2 (24-72h): recuperación lenta ~40% restante
-export function calcRecovery(hoursElapsed: number, totalHours: number) {
-  if (totalHours <= 0) return 1;
-  if (hoursElapsed >= totalHours) return 1;
-  const midpoint = totalHours * 0.33; // 24h aprox para 72h
-  if (hoursElapsed <= midpoint) {
-    return (hoursElapsed / midpoint) * 0.6;
-  } else {
-    return 0.6 + ((hoursElapsed - midpoint) / (totalHours - midpoint)) * 0.4;
+function roundToSingleDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+export function getSleepModifier(sleepLogs: SleepLog[], referenceDate = new Date()) {
+  const summary = getRollingSleepSummary(sleepLogs, referenceDate);
+  if (summary.daysLogged === 0 || summary.averageHours === null || summary.averageQuality === null) {
+    return 1;
   }
+
+  if (summary.averageHours < 6 || summary.averageQuality < 55) {
+    return 0.6;
+  }
+
+  if (summary.averageHours < 7 || summary.averageQuality < 70) {
+    return 0.8;
+  }
+
+  return 1;
+}
+
+function getLocalFatiguePhaseMultiplier(hoursElapsed: number, totalRecoveryHours: number) {
+  if (hoursElapsed < 0 || hoursElapsed >= totalRecoveryHours) {
+    return 0;
+  }
+
+  if (hoursElapsed < 48) {
+    return 1;
+  }
+
+  if (hoursElapsed < 72) {
+    return 0.75;
+  }
+
+  if (hoursElapsed < 96) {
+    return 0.45;
+  }
+
+  return 0.2;
 }
 
 export function getVolumeModifier(sets: number) {
-  if (sets <= 3) return 0.75;
-  if (sets <= 6) return 1.0;
+  if (sets <= 3) {
+    return 0.75;
+  }
+
+  if (sets <= 6) {
+    return 1;
+  }
+
   return 1.5;
 }
 
 export function getEffectiveMRV(muscle: MuscleGroup, modifier: number) {
   const base = VOLUME_THRESHOLDS[muscle];
+
   return {
     mev: base.mev * modifier,
     mavMin: base.mavMin * modifier,
@@ -94,56 +137,134 @@ export function getEffectiveMRV(muscle: MuscleGroup, modifier: number) {
   };
 }
 
-export function calculateFatigue({
-  sessions,
-  sleepLogs: _sleepLogs,
-  profile: _profile,
-  referenceDate = new Date(),
-}: FatigueInputs) {
-  const fatigue = { ...EMPTY_RECORDS };
-  
-  sessions.forEach((session) => {
-    const hoursSince = differenceInHours(referenceDate, new Date(session.performedAt));
-    if (hoursSince < 0 || hoursSince > 120) return; // ignore sessions older than 5 days for acute fatigue
+function buildSessionMuscleSets(session: WorkoutSession, profile: UserProfile) {
+  const setsByMuscle = { ...EMPTY_RECORDS };
 
-    const sessionSets: Record<MuscleGroup, number> = { ...EMPTY_RECORDS };
+  session.logs.forEach((log) => {
+    const trackedSets = getTrackedSetCount(log);
+    const bodyweightFactor = log.isBodyweight ? getBodyweightLoadFactor(profile.weight) : 1;
+    const effectiveSets = trackedSets * bodyweightFactor;
+    setsByMuscle[log.muscleGroup] += effectiveSets;
 
-    session.logs.forEach((log) => {
-      const sets = getTrackedSetCount(log);
-      sessionSets[log.muscleGroup] += sets;
-      
-      // Secondary muscles
-      const secondary = SECONDARY_MUSCLES[log.muscleGroup];
-      if (secondary) {
-        for (const [secMuscle, fraction] of Object.entries(secondary)) {
-          sessionSets[secMuscle as MuscleGroup] += sets * (fraction as number);
-        }
-      }
-    });
+    const secondaryTargets = SECONDARY_MUSCLES[log.muscleGroup];
+    if (!secondaryTargets) {
+      return;
+    }
 
-    (Object.keys(sessionSets) as MuscleGroup[]).forEach((muscleGroup) => {
-      const sets = sessionSets[muscleGroup];
-      if (sets === 0) return;
-
-      const baseHours = BASE_RECOVERY_HOURS[muscleGroup];
-      const volumeModifier = getVolumeModifier(sets);
-      const totalHours = baseHours * volumeModifier;
-
-      const recoveryFraction = calcRecovery(hoursSince, totalHours);
-      const remainingFraction = Math.max(0, 1 - recoveryFraction);
-      
-      // Acute fatigue logic: max 100 per muscle total, mapped roughly from sets vs MRV
-      // We assume MRV equates to roughly 100% fatigue if done in one session, though impossible.
-      // Let's say 1/3 of MRV adds 50% acute fatigue.
-      const mrv = VOLUME_THRESHOLDS[muscleGroup].mrv;
-      const acuteAdded = (sets / (mrv * 0.4)) * 100;
-
-      fatigue[muscleGroup] += acuteAdded * remainingFraction;
+    (Object.entries(secondaryTargets) as Array<[MuscleGroup, number]>).forEach(([targetMuscle, weighting]) => {
+      setsByMuscle[targetMuscle] += effectiveSets * weighting;
     });
   });
 
-  (Object.keys(fatigue) as MuscleGroup[]).forEach((muscleGroup) => {
-    fatigue[muscleGroup] = Math.min(100, Math.max(0, fatigue[muscleGroup]));
+  return setsByMuscle;
+}
+
+function getTotalRecoveryHours({
+  muscleGroup,
+  sessionMuscleSets,
+  profile,
+  sleepLogs,
+  referenceDate,
+}: {
+  muscleGroup: MuscleGroup;
+  sessionMuscleSets: Record<MuscleGroup, number>;
+  profile: UserProfile;
+  sleepLogs: SleepLog[];
+  referenceDate: Date;
+}) {
+  const baseHours = BASE_RECOVERY_HOURS[muscleGroup];
+  const volumeModifier = getVolumeModifier(sessionMuscleSets[muscleGroup]);
+  const agePenalty = getAgeRecoveryPenaltyHours(profile.age);
+  const sleepPenalty = getSleepRecoveryPenaltyHours(sleepLogs, referenceDate);
+
+  return (baseHours * volumeModifier) + agePenalty + sleepPenalty;
+}
+
+function buildDetailedContributions({
+  sessions,
+  sleepLogs,
+  profile,
+  referenceDate,
+}: Required<FatigueInputs>) {
+  const contributions: DetailedContribution[] = [];
+
+  sessions.forEach((session) => {
+    const hoursSince = differenceInHours(referenceDate, new Date(session.performedAt));
+    if (hoursSince < 0 || hoursSince > ACUTE_FATIGUE_WINDOW_HOURS) {
+      return;
+    }
+
+    const sessionMuscleSets = buildSessionMuscleSets(session, profile);
+
+    session.logs.forEach((log) => {
+      const trackedSets = getTrackedSetCount(log);
+      if (trackedSets <= 0) {
+        return;
+      }
+
+      const bodyweightFactor = log.isBodyweight ? getBodyweightLoadFactor(profile.weight) : 1;
+      const targetEntries: Array<[MuscleGroup, number]> = [
+        [log.muscleGroup, 1],
+        ...Object.entries(SECONDARY_MUSCLES[log.muscleGroup] ?? {}) as Array<[MuscleGroup, number]>,
+      ];
+
+      targetEntries.forEach(([targetMuscle, weighting]) => {
+        const effectiveSets = trackedSets * bodyweightFactor * weighting;
+        const totalRecoveryHours = getTotalRecoveryHours({
+          muscleGroup: targetMuscle,
+          sessionMuscleSets,
+          profile,
+          sleepLogs,
+          referenceDate,
+        });
+        const remainingFraction = getLocalFatiguePhaseMultiplier(hoursSince, totalRecoveryHours);
+        if (remainingFraction <= 0) {
+          return;
+        }
+
+        const acuteFatigue = clamp((effectiveSets / (VOLUME_THRESHOLDS[targetMuscle].mrv * 0.4)) * 100, 0, 100);
+        const fatigueContribution = acuteFatigue * remainingFraction;
+        if (fatigueContribution <= 0) {
+          return;
+        }
+
+        contributions.push({
+          muscleGroup: targetMuscle,
+          sourceMuscleGroup: log.muscleGroup,
+          sessionName: session.name,
+          performedAt: session.performedAt,
+          exerciseName: log.exerciseName,
+          sets: roundToSingleDecimal(effectiveSets),
+          fatigueContribution: roundToSingleDecimal(fatigueContribution),
+          hoursSince,
+          weighting,
+        });
+      });
+    });
+  });
+
+  return contributions;
+}
+
+export function calculateFatigue({
+  sessions,
+  sleepLogs,
+  profile,
+  referenceDate = new Date(),
+}: FatigueInputs) {
+  const fatigue = { ...EMPTY_RECORDS };
+
+  buildDetailedContributions({
+    sessions,
+    sleepLogs,
+    profile,
+    referenceDate,
+  }).forEach((contribution) => {
+    fatigue[contribution.muscleGroup] += contribution.fatigueContribution;
+  });
+
+  RECOVERY_MUSCLE_GROUP_ORDER.forEach((muscleGroup) => {
+    fatigue[muscleGroup] = clamp(fatigue[muscleGroup], 0, 100);
   });
 
   return fatigue;
@@ -158,33 +279,43 @@ export interface FatigueContribution {
 }
 
 export function getFatigueBreakdown(
-  _inputs: FatigueInputs,
-  _muscleGroup: MuscleGroup,
+  inputs: FatigueInputs,
+  muscleGroup: MuscleGroup,
 ) {
-  // We mock this slightly as breakdown by exercise is harder with secondary muscles.
-  return [] as FatigueContribution[]; // keeping simple for now, or to fix later if needed
+  return buildDetailedContributions({
+    sessions: inputs.sessions,
+    sleepLogs: inputs.sleepLogs,
+    profile: inputs.profile,
+    referenceDate: inputs.referenceDate ?? new Date(),
+  })
+    .filter((entry) => entry.muscleGroup === muscleGroup)
+    .sort((left, right) => right.fatigueContribution - left.fatigueContribution)
+    .map(({ muscleGroup: _muscleGroup, sourceMuscleGroup: _sourceMuscleGroup, hoursSince: _hoursSince, weighting: _weighting, ...entry }) => entry);
 }
 
 export function calculateWeeklyVolume(sessions: WorkoutSession[], referenceDate = new Date()) {
   const weekStart = startOfWeek(referenceDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(referenceDate, { weekStartsOn: 1 });
   const volume = { ...EMPTY_RECORDS };
 
   sessions.forEach((session) => {
     const sessionDate = new Date(session.performedAt);
-    if (!isAfter(sessionDate, weekStart) && sessionDate.getTime() !== weekStart.getTime()) {
+    if (sessionDate < weekStart || sessionDate > weekEnd) {
       return;
     }
 
     session.logs.forEach((log) => {
       const sets = getTrackedSetCount(log);
       volume[log.muscleGroup] += sets;
-      
-      const secondary = SECONDARY_MUSCLES[log.muscleGroup];
-      if (secondary) {
-        for (const [secMuscle, fraction] of Object.entries(secondary)) {
-          volume[secMuscle as MuscleGroup] += sets * (fraction as number);
-        }
+
+      const secondaryTargets = SECONDARY_MUSCLES[log.muscleGroup];
+      if (!secondaryTargets) {
+        return;
       }
+
+      (Object.entries(secondaryTargets) as Array<[MuscleGroup, number]>).forEach(([targetMuscle, weighting]) => {
+        volume[targetMuscle] += sets * weighting;
+      });
     });
   });
 
@@ -192,15 +323,33 @@ export function calculateWeeklyVolume(sessions: WorkoutSession[], referenceDate 
 }
 
 export function getRecoveryColor(fatigue: number) {
-  if (fatigue < 20) return 'bg-emerald-500';
-  if (fatigue < 50) return 'bg-amber-400';
-  if (fatigue < 80) return 'bg-orange-500';
+  if (fatigue < 20) {
+    return 'bg-emerald-500';
+  }
+
+  if (fatigue < 50) {
+    return 'bg-amber-400';
+  }
+
+  if (fatigue < 80) {
+    return 'bg-orange-500';
+  }
+
   return 'bg-red-500';
 }
 
 export function getRecoveryText(fatigue: number) {
-  if (fatigue < 20) return 'Listo para entrenar';
-  if (fatigue < 50) return 'Recuperación parcial';
-  if (fatigue < 80) return 'Fatigado';
+  if (fatigue < 20) {
+    return 'Listo para entrenar';
+  }
+
+  if (fatigue < 50) {
+    return 'Recuperacion parcial';
+  }
+
+  if (fatigue < 80) {
+    return 'Fatigado';
+  }
+
   return 'Necesita descanso';
 }

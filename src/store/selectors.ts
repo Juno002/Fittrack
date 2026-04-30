@@ -28,8 +28,23 @@ import {
   getSleepModifier,
 } from '@/lib/fatigue';
 import {
+  DEFAULT_REST_DURATION_SECONDS,
+  getAgeReadinessAdjustment,
+  getBodyweightLoadFactor,
+  getNutritionAdequacySummary as buildNutritionAdequacySummary,
+  getReadinessGate,
+  getRecentSignalCounts,
+  getRecoveryConfidence,
+  getSleepReadinessAdjustment,
+  GLOBAL_READINESS_BASE,
+  type NutritionAdequacySummary,
+  RECOVERY_MUSCLE_GROUP_ORDER,
+} from '@/lib/recoveryModel';
+import {
+  calculate1RM,
   getWorkoutLogLoadTotal,
   getWorkoutLogRepTotal,
+  getTrackedSetCount,
   getWorkoutSessionLoadTotal,
   getWorkoutSessionRepTotal,
   getWorkoutSessionSetTotal,
@@ -51,23 +66,65 @@ function hasTrainingHistory(state: AppStoreData) {
   return state.sessions.length > 0;
 }
 
-function calculateStarterReadiness(state: AppStoreData) {
-  const latestSleep = selectLatestSleepLog(state);
+function getQuickLogAdjustment(state: AppStoreData, referenceDate = new Date()) {
   const latestRecovery = selectLatestRecoveryCheckIn(state);
-  let readiness = 72;
-
-  if (latestSleep) {
-    readiness += latestSleep.durationHours >= 8 ? 12 : latestSleep.durationHours >= 7 ? 6 : latestSleep.durationHours >= 6 ? 0 : -10;
-    readiness += latestSleep.qualityScore >= 85 ? 6 : latestSleep.qualityScore >= 70 ? 2 : latestSleep.qualityScore >= 55 ? -4 : -8;
+  if (!latestRecovery) {
+    return 0;
   }
 
-  if (latestRecovery) {
-    readiness += (latestRecovery.energy - 3) * 7;
-    readiness += (3 - latestRecovery.soreness) * 6;
-    readiness += (3 - latestRecovery.stress) * 5;
+  const hoursSince = differenceInHours(referenceDate, new Date(latestRecovery.loggedAt));
+  if (hoursSince > 24 || hoursSince < 0) {
+    return 0;
   }
 
-  return clamp(Math.round(readiness), 28, 92);
+  return ((latestRecovery.energy - 3) * 4)
+    + ((3 - latestRecovery.soreness) * 4)
+    + ((3 - latestRecovery.stress) * 3);
+}
+
+function getSystemicSessionPenalty(state: AppStoreData, referenceDate = new Date()) {
+  const effortMultipliers = [0.7, 0.85, 1, 1.15, 1.3];
+  const penalty = state.sessions.reduce((total, session) => {
+    const hoursSince = differenceInHours(referenceDate, new Date(session.performedAt));
+    if (hoursSince < 0 || hoursSince > 120) {
+      return total;
+    }
+
+    const recencyMultiplier = hoursSince < 24 ? 1 : hoursSince < 48 ? 0.7 : hoursSince < 72 ? 0.4 : 0.15;
+    const effortMultiplier = effortMultipliers[Math.max(0, Math.min(effortMultipliers.length - 1, session.effort - 1))] ?? 1;
+
+    const sessionPenalty = session.logs.reduce((sessionTotal, log) => {
+      const trackedSets = getTrackedSetCount(log);
+      const bodyweightFactor = log.isBodyweight ? getBodyweightLoadFactor(state.profile.weight) : 1;
+      return sessionTotal + (trackedSets * effortMultiplier * recencyMultiplier * bodyweightFactor);
+    }, 0);
+
+    return total + sessionPenalty;
+  }, 0);
+
+  return Math.min(35, penalty * 2.2);
+}
+
+function getReadinessConfidence(state: AppStoreData, referenceDate = new Date()) {
+  const nutrition = buildNutritionAdequacySummary({
+    foods: state.foods,
+    calorieGoal: state.calorieGoal,
+    macroGoal: state.macrosGoal,
+    foodSignalEnabled: state.settings.connectedSignals.food,
+    referenceDate,
+  });
+  const signalCounts = getRecentSignalCounts({
+    sleepLogs: state.sleepLogs,
+    recoveryCheckins: state.recoveryCheckins,
+    referenceDate,
+  });
+
+  return getRecoveryConfidence({
+    sessions: state.sessions.length,
+    recentSleepLogs: signalCounts.recentSleepLogs,
+    recentRecoveryCheckins: signalCounts.recentRecoveryCheckins,
+    nutritionDaysLogged: nutrition.daysLogged,
+  });
 }
 
 export function selectTodayDayKey() {
@@ -104,7 +161,7 @@ export function selectLatestRecoveryCheckIn(state: AppStoreData) {
   return [...state.recoveryCheckins].sort((left, right) => right.loggedAt.localeCompare(left.loggedAt))[0] ?? null;
 }
 
-export function selectFatigueSummary(state: AppStoreData, referenceDate = new Date()) {
+export function selectLocalFatigueSummary(state: AppStoreData, referenceDate = new Date()) {
   return calculateFatigue({
     sessions: state.sessions,
     sleepLogs: state.sleepLogs,
@@ -113,70 +170,100 @@ export function selectFatigueSummary(state: AppStoreData, referenceDate = new Da
   });
 }
 
+export function selectFatigueSummary(state: AppStoreData, referenceDate = new Date()) {
+  return selectLocalFatigueSummary(state, referenceDate);
+}
+
+export function selectNutritionAdequacySummary(state: AppStoreData, referenceDate = new Date()): NutritionAdequacySummary {
+  return buildNutritionAdequacySummary({
+    foods: state.foods,
+    calorieGoal: state.calorieGoal,
+    macroGoal: state.macrosGoal,
+    foodSignalEnabled: state.settings.connectedSignals.food,
+    referenceDate,
+  });
+}
+
+export function selectSystemicReadinessSummary(state: AppStoreData, referenceDate = new Date()) {
+  const trainingPenalty = getSystemicSessionPenalty(state, referenceDate);
+  const sleepAdjustment = getSleepReadinessAdjustment(state.sleepLogs, referenceDate);
+  const recoveryAdjustment = getQuickLogAdjustment(state, referenceDate);
+  const nutritionAdequacy = selectNutritionAdequacySummary(state, referenceDate);
+  const ageAdjustment = getAgeReadinessAdjustment(state.profile.age);
+  const readiness = clamp(
+    Math.round(
+      GLOBAL_READINESS_BASE
+      - trainingPenalty
+      + sleepAdjustment
+      + recoveryAdjustment
+      + nutritionAdequacy.adjustment
+      + ageAdjustment,
+    ),
+    0,
+    100,
+  );
+
+  return {
+    readiness,
+    systemicFatigue: clamp(Math.round(100 - readiness), 0, 100),
+    trainingPenalty,
+    sleepAdjustment,
+    recoveryAdjustment,
+    nutritionAdjustment: nutritionAdequacy.adjustment,
+    ageAdjustment,
+  };
+}
+
 export function selectReadinessSummary(state: AppStoreData, referenceDate = new Date()) {
   const hasTrainingData = hasTrainingHistory(state);
   const hasRecoverySignals = state.sleepLogs.length > 0 || state.recoveryCheckins.length > 0;
-  const latestSleep = selectLatestSleepLog(state);
-  const latestRecovery = selectLatestRecoveryCheckIn(state);
-  const fatigue = selectFatigueSummary(state, referenceDate);
+  const fatigue = selectLocalFatigueSummary(state, referenceDate);
+  const systemic = selectSystemicReadinessSummary(state, referenceDate);
+  const nutritionAdequacy = selectNutritionAdequacySummary(state, referenceDate);
+  const confidence = getReadinessConfidence(state, referenceDate);
   const entries = Object.entries(fatigue) as [MuscleGroup, number][];
-  const averageFatigue = entries.reduce((total, [, value]) => total + value, 0) / entries.length;
   const maxFatigueValue = Math.max(...entries.map(([, value]) => value), 0);
-  const readiness = hasTrainingData
-    ? clamp(Math.round(100 - averageFatigue), 12, 100)
-    : calculateStarterReadiness(state);
+  const readiness = systemic.readiness;
+  const readinessGate = getReadinessGate(readiness);
 
   const weeklyVolume = calculateWeeklyVolume(state.sessions, referenceDate);
   const sleepMod = getSleepModifier(state.sleepLogs, referenceDate);
 
-  const recommendedMuscles = hasTrainingData && maxFatigueValue > 0
-    ? [...entries]
-        .sort((left, right) => left[1] - right[1])
-        .slice(0, 2)
-        .map(([muscleGroup]) => muscleGroup)
-    : [];
+  const recommendedMuscles = readinessGate === 'recover' || (!hasTrainingData && maxFatigueValue === 0)
+    ? []
+    : [...entries]
+      .sort((left, right) => left[1] - right[1])
+      .slice(0, 2)
+      .map(([muscleGroup]) => muscleGroup);
   const highestFatigue = hasTrainingData && maxFatigueValue > 0
     ? [...entries].sort((left, right) => right[1] - left[1])[0] ?? null
     : null;
   const suggestedDurationMinutes = hasTrainingData
-    ? readiness >= 80 ? 45 : readiness >= 60 ? 35 : readiness >= 40 ? 25 : 20
-    : readiness >= 80 ? 30 : readiness >= 60 ? 24 : readiness >= 45 ? 18 : 14;
+    ? readinessGate === 'train' ? 45 : readinessGate === 'controlled' ? 30 : 18
+    : readinessGate === 'train' ? 28 : readinessGate === 'controlled' ? 22 : 16;
 
-  let coachTitle = 'Volumen bajo.';
-  let coachBody = 'Aún no realizas suficiente volumen para crecer óptimamente esta semana.';
+  let coachTitle = 'Base de recuperacion lista.';
+  let coachBody = 'Con historial y senales recientes podemos proponerte una sesion mas afinada.';
   let coachTone: 'good' | 'warn' | 'danger' = 'warn';
 
-  if (!hasTrainingData) {
-    if (latestRecovery && (latestRecovery.energy <= 2 || latestRecovery.soreness >= 4 || latestRecovery.stress >= 4)) {
-      coachTone = latestRecovery.energy <= 2 && latestRecovery.stress >= 4 ? 'danger' : 'warn';
-      coachTitle = 'Arranque suave hoy.';
-      coachBody = 'Todavía no hay historial de entrenamientos, así que hoy conviene construir base con movilidad, técnica y una sesión corta.';
-    } else if (latestSleep && latestSleep.durationHours < 7) {
-      coachTone = 'warn';
-      coachTitle = 'Base lista, pero recupera mejor.';
-      coachBody = 'Tu primera semana puede empezar suave. Registra una noche mejor y luego empuja más fuerte.';
-    } else if (hasRecoverySignals) {
-      coachTone = 'good';
-      coachTitle = 'Tu base inicial ya responde.';
-      coachBody = 'Con las señales actuales podemos proponerte una primera sesión corta sin inventar cargas específicas por músculo.';
-    } else {
-      coachTone = 'good';
-      coachTitle = 'Listo para construir tu línea base.';
-      coachBody = 'Aún no hay historial de entreno. Empieza con una rutina breve y el sistema aprenderá tu ritmo real desde ahí.';
-    }
-
-    return {
-      readiness,
-      fatigue,
-      recommendedMuscles,
-      highestFatigue,
-      suggestedDurationMinutes,
-      coachTone,
-      coachTitle,
-      coachBody,
-      hasTrainingData,
-      hasRecoverySignals,
-    };
+  if (readinessGate === 'recover') {
+    coachTone = 'danger';
+    coachTitle = confidence === 'low' ? 'Hoy toca recuperar con prudencia.' : 'Recuperacion prioritaria hoy.';
+    coachBody = highestFatigue
+      ? `Tu estado global pide bajar una marcha y proteger ${formatMuscleGroup(highestFatigue[0]).toLowerCase()}. Respira, mueve suave y evita sembrar una sesion exigente.`
+      : 'El sistema detecta poca disponibilidad global. Hoy encaja mejor movilidad, respiracion y recuperacion activa.';
+  } else if (readinessGate === 'controlled') {
+    coachTone = 'warn';
+    coachTitle = confidence === 'low' ? 'Sesion base con estimacion inicial.' : 'Buen dia para controlar el volumen.';
+    coachBody = recommendedMuscles.length > 0
+      ? `Los grupos mas frescos hoy son ${recommendedMuscles.map((muscle) => formatMuscleGroup(muscle).toLowerCase()).join(' y ')}. Mantén tecnica y volumen moderado.`
+      : 'Todavia falta contexto para recomendar un foco exacto, pero conviene una sesion sencilla y bien medida.';
+  } else {
+    coachTone = 'good';
+    coachTitle = confidence === 'low' ? 'Base util para entrenar, aun por afinar.' : 'Listo para una sesion principal.';
+    coachBody = recommendedMuscles.length > 0
+      ? `Tus grupos mas frescos hoy son ${recommendedMuscles.map((muscle) => formatMuscleGroup(muscle).toLowerCase()).join(' y ')}. Puedes empujar ahi sin sobrecargar lo que viene mas fatigado.`
+      : 'La disponibilidad global es buena y no hay una zona claramente comprometida. Puedes seguir una sesion equilibrada.';
   }
 
   let maxRatio = 0;
@@ -206,37 +293,33 @@ export function selectReadinessSummary(state: AppStoreData, referenceDate = new 
     }
   }
 
-  const muscleName = formatMuscleGroup(maxMuscle).toLowerCase();
+  if (readinessGate !== 'recover') {
+    const muscleName = formatMuscleGroup(maxMuscle).toLowerCase();
 
-  if (zone === 'over') {
-    coachTone = 'danger';
-    coachTitle = `Límite superado en ${muscleName}.`;
-    coachBody = `No entrenes tus ${muscleName} más esta semana. Has superado su máximo volumen recuperable. Hoy prioriza descanso o movilidad ligera.`;
-  } else if (zone === 'high') {
-    coachTone = 'warn';
-    coachTitle = `Volumen alto en ${muscleName}.`;
-    coachBody = `Estás cerca del límite para ${muscleName}. Te conviene una sesión más técnica o un día de descarga activa.`;
-  } else if (zone === 'optimal') {
-    coachTone = 'good';
-    coachTitle = `Volumen óptimo en ${muscleName}.`;
-    coachBody = 'Estás en una buena zona de trabajo. Si duermes bien esta noche, mañana puedes empujar otro bloque sólido.';
-  } else if (maxRatio > 0 && sleepMod < 0.9) {
-    coachTone = 'warn';
-    coachTitle = 'Recuperación comprometida.';
-    coachBody = 'Tu sueño reciente está bajando la capacidad de recuperación. Antes de subir volumen, recupera mejor.';
-  } else if (maxRatio > 0) {
-    coachTone = 'warn';
-    coachTitle = `Volumen corto en ${muscleName}.`;
-    coachBody = 'Todavía estás por debajo del mínimo efectivo para ese grupo. Puedes completar la semana con una sesión simple y de calidad.';
-  } else {
-    coachTone = 'good';
-    coachTitle = 'Listo para progresar.';
-    coachBody = 'Tu recuperación está alta. Hoy es un buen momento para una sesión principal o para retomar una rutina guardada.';
+    if (zone === 'over') {
+      coachTone = 'danger';
+      coachTitle = `Limite semanal superado en ${muscleName}.`;
+      coachBody = `Tu volumen acumulado ahi ya esta por encima del rango tolerable. Incluso si el score global acompana, hoy conviene no sumar mas carga en ese grupo.`;
+    } else if (zone === 'high') {
+      coachTone = 'warn';
+      coachTitle = `Volumen alto en ${muscleName}.`;
+      coachBody = `Ese grupo ya va cerca de su techo semanal. Mantén tecnica, reduce accesorios o cambia el foco del dia.`;
+    } else if (maxRatio > 0 && sleepMod < 0.9) {
+      coachTone = 'warn';
+      coachTitle = 'Recuperacion limitada por sueno.';
+      coachBody = 'Tu tolerancia al volumen bajo un poco esta semana. Antes de subir carga, mejora descanso y controla el esfuerzo.';
+    }
   }
 
   return {
     readiness,
+    globalReadiness: readiness,
+    systemicFatigue: systemic.systemicFatigue,
     fatigue,
+    localFatigue: fatigue,
+    nutritionAdequacy,
+    confidence,
+    readinessGate,
     recommendedMuscles,
     highestFatigue,
     suggestedDurationMinutes,
@@ -253,12 +336,15 @@ export function selectRecommendedExercises(
   library: ExerciseDefinition[],
   referenceDate = new Date(),
 ) {
-  const { recommendedMuscles } = selectReadinessSummary(state, referenceDate);
+  const { recommendedMuscles, readinessGate } = selectReadinessSummary(state, referenceDate);
   const muscleSet = new Set(recommendedMuscles);
 
+  if (readinessGate === 'recover') {
+    return [];
+  }
+
   if (muscleSet.size === 0) {
-    const bodyweightExercises = library.filter((exercise) => exercise.isBodyweight);
-    return (bodyweightExercises.length > 0 ? bodyweightExercises : library).slice(0, 4);
+    return library.slice(0, 4);
   }
 
   return library
@@ -266,22 +352,31 @@ export function selectRecommendedExercises(
     .slice(0, 4);
 }
 
-export function selectTrainingStreak(state: AppStoreData) {
-  if (state.sessions.length === 0) {
+export function selectRecoveryConsistencyStreak(state: AppStoreData) {
+  const recoveryDays = Array.from(new Set([
+    ...state.sessions.map((session) => session.dayKey),
+    ...state.sleepLogs.map((entry) => entry.dayKey),
+    ...state.recoveryCheckins.map((entry) => entry.dayKey),
+  ])).sort(compareDayKeys);
+
+  if (recoveryDays.length === 0) {
     return 0;
   }
 
-  const trainingDays = Array.from(new Set(state.sessions.map((session) => session.dayKey))).sort(compareDayKeys);
   let streak = 0;
-  let cursor = parseDayKey(trainingDays[trainingDays.length - 1]);
-  const trainingDaySet = new Set(trainingDays);
+  let cursor = parseDayKey(recoveryDays[recoveryDays.length - 1]);
+  const recoveryDaySet = new Set(recoveryDays);
 
-  while (trainingDaySet.has(toDayKey(cursor))) {
+  while (recoveryDaySet.has(toDayKey(cursor))) {
     streak += 1;
     cursor = subDays(cursor, 1);
   }
 
   return streak;
+}
+
+export function selectTrainingStreak(state: AppStoreData) {
+  return selectRecoveryConsistencyStreak(state);
 }
 
 export function selectDaySummary(state: AppStoreData, dayKey: string) {
@@ -439,7 +534,7 @@ export function selectProfileSummary(state: AppStoreData) {
     connectedSignals: state.settings.connectedSignals,
     trainingSchedule: state.settings.trainingSchedule,
     reminders: state.settings.reminders,
-    defaultRestDuration: state.settings.defaultRestDuration ?? 60,
+    defaultRestDuration: state.settings.defaultRestDuration ?? DEFAULT_REST_DURATION_SECONDS,
     profile: state.profile,
     latestWeight: state.weightLogs[0]?.weight ?? state.profile.weight,
   };
@@ -451,71 +546,30 @@ export function selectTodayPlan(state: AppStoreData, referenceDate = new Date())
   const scheduledToday = state.settings.trainingSchedule.days.includes(trainingDay);
   const focusLabel = readiness.recommendedMuscles.map((muscle) => formatMuscleGroup(muscle)).join(' + ');
 
-  if (!readiness.hasTrainingData) {
-    if (readiness.readiness >= 70) {
-      return {
-        title: scheduledToday ? 'Sesión de arranque' : 'Buen día para empezar',
-        subtitle: `${scheduledToday ? 'Construye tu primera rutina' : 'Haz una sesión corta de base'} · ${formatPreferredTrainingTime(state.settings.trainingSchedule.preferredTime)}`,
-        ctaLabel: 'Crear primera rutina',
-        tone: 'good' as const,
-        scheduledToday,
-        steps: [
-          { id: 'warmup', label: 'Calentamiento', minutes: 5 },
-          { id: 'fundamentals', label: 'Bloque principal', minutes: Math.max(10, readiness.suggestedDurationMinutes - 8) },
-          { id: 'cooldown', label: 'Vuelta a la calma', minutes: 3 },
-        ],
-      };
-    }
-
-    if (readiness.readiness >= 50) {
-      return {
-        title: 'Arranque controlado',
-        subtitle: 'Movilidad, técnica y una sesión breve mientras reunimos tus primeras señales reales.',
-        ctaLabel: 'Empezar suave',
-        tone: 'warn' as const,
-        scheduledToday,
-        steps: [
-          { id: 'warmup', label: 'Activación', minutes: 4 },
-          { id: 'technique', label: 'Técnica', minutes: Math.max(8, readiness.suggestedDurationMinutes - 8) },
-          { id: 'mobility', label: 'Movilidad', minutes: 4 },
-        ],
-      };
-    }
-
+  if (readiness.readinessGate === 'recover') {
     return {
-      title: 'Recuperación inicial',
-      subtitle: 'Respira, muévete suave y deja que el sistema construya tu baseline sin forzar la primera semana.',
-      ctaLabel: 'Abrir rutina suave',
+      title: readiness.hasTrainingData ? 'Recuperacion activa' : 'Construye base sin forzar',
+      subtitle: readiness.highestFatigue
+        ? `Tu readiness global esta bajo. Baja el ritmo y evita sobrecargar ${formatMuscleGroup(readiness.highestFatigue[0]).toLowerCase()}.`
+        : 'Hoy encaja mejor respiracion, movilidad y control tecnico que una sesion exigente.',
+      ctaLabel: 'Ver catalogo base',
       tone: 'danger' as const,
       scheduledToday,
       steps: [
-        { id: 'breath', label: 'Respiración', minutes: 4 },
-        { id: 'mobility', label: 'Movilidad suave', minutes: Math.max(8, readiness.suggestedDurationMinutes - 4) },
+        { id: 'breath', label: 'Respiracion', minutes: 4 },
+        { id: 'mobility', label: 'Movilidad suave', minutes: 8 },
+        { id: 'walk', label: 'Circuito ligero', minutes: Math.max(6, readiness.suggestedDurationMinutes - 12) },
       ],
     };
   }
 
-  if (readiness.readiness >= 80) {
+  if (readiness.readinessGate === 'controlled') {
     return {
-      title: scheduledToday ? 'Sesión principal' : 'Día ideal para entrenar',
-      subtitle: `${focusLabel || 'Recuperación general'} · ${formatPreferredTrainingTime(state.settings.trainingSchedule.preferredTime)}`,
-      ctaLabel: 'Empezar sesión',
-      tone: 'good' as const,
-      scheduledToday,
-      steps: [
-        { id: 'warmup', label: 'Calentamiento', minutes: 5 },
-        { id: 'compound', label: focusLabel || 'Bloque principal', minutes: Math.max(15, readiness.suggestedDurationMinutes - 15) },
-        { id: 'finisher', label: 'Accesorios', minutes: 7 },
-        { id: 'cooldown', label: 'Vuelta a la calma', minutes: 3 },
-      ],
-    };
-  }
-
-  if (readiness.readiness >= 55) {
-    return {
-      title: 'Sesión base',
-      subtitle: `Mantén calidad y técnica en ${focusLabel || 'los grupos frescos'}`,
-      ctaLabel: 'Entrenar con control',
+      title: readiness.hasTrainingData ? 'Sesion base' : 'Arranque controlado',
+      subtitle: readiness.hasTrainingData
+        ? `Mantén calidad y volumen moderado en ${focusLabel || 'los grupos mas frescos'}.`
+        : 'Movilidad, tecnica y una sesion breve mientras reunimos mas senales reales.',
+      ctaLabel: readiness.hasTrainingData ? 'Entrenar con control' : 'Crear primera rutina',
       tone: 'warn' as const,
       scheduledToday,
       steps: [
@@ -527,17 +581,18 @@ export function selectTodayPlan(state: AppStoreData, referenceDate = new Date())
   }
 
   return {
-    title: 'Recuperación guiada',
-    subtitle: readiness.highestFatigue
-      ? `Baja el ritmo y evita sobrecargar ${formatMuscleGroup(readiness.highestFatigue[0]).toLowerCase()}`
-      : 'Baja el ritmo y usa una sesión corta de movilidad y control técnico.',
-    ctaLabel: 'Abrir rutina suave',
-    tone: 'danger' as const,
+    title: readiness.hasTrainingData
+      ? (scheduledToday ? 'Sesion principal' : 'Dia ideal para entrenar')
+      : 'Buen dia para empezar',
+    subtitle: `${focusLabel || 'Recuperacion general'} · ${formatPreferredTrainingTime(state.settings.trainingSchedule.preferredTime)}`,
+    ctaLabel: readiness.hasTrainingData ? 'Empezar sesion' : 'Crear primera rutina',
+    tone: 'good' as const,
     scheduledToday,
     steps: [
-      { id: 'breath', label: 'Respiración', minutes: 4 },
-      { id: 'mobility', label: 'Movilidad suave', minutes: 10 },
-      { id: 'walk', label: 'Circuito ligero', minutes: Math.max(8, readiness.suggestedDurationMinutes - 14) },
+      { id: 'warmup', label: 'Calentamiento', minutes: 5 },
+      { id: 'compound', label: focusLabel || 'Bloque principal', minutes: Math.max(15, readiness.suggestedDurationMinutes - 15) },
+      { id: 'finisher', label: 'Accesorios', minutes: 7 },
+      { id: 'cooldown', label: 'Vuelta a la calma', minutes: 3 },
     ],
   };
 }
@@ -559,6 +614,19 @@ export function selectMapFocus(state: AppStoreData, referenceDate = new Date()) 
     };
   }
 
+  if (readiness.readinessGate === 'recover') {
+    return {
+      title: 'Hoy toca recuperar',
+      body: highestFatigueMuscle
+        ? `Aunque otros grupos parezcan frescos, tu readiness global esta bajo. Protege ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()} y prioriza movilidad o respiracion.`
+        : 'El mapa detecta poca disponibilidad global. Usa el dia para recuperacion activa y evita sembrar una sesion exigente.',
+      recoveryTarget,
+      highestFatigueMuscle,
+      highestFatigueValue,
+      hasTrainingData: readiness.hasTrainingData,
+    };
+  }
+
   if (recoveryTarget.length === 0 && highestFatigueMuscle === null) {
     return {
       title: 'Recuperación equilibrada',
@@ -572,7 +640,7 @@ export function selectMapFocus(state: AppStoreData, referenceDate = new Date()) 
 
   return {
     title: recoveryTarget.length > 0 ? `${recoveryTarget.join(' + ')} están listos` : 'Tu cuerpo está listo',
-    body: highestFatigueMuscle && readiness.readiness >= 65
+    body: highestFatigueMuscle && readiness.readinessGate === 'train'
       ? `Prioriza ${recoveryTarget.join(' y ').toLowerCase()} y evita sobrecargar ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()}.`
       : highestFatigueMuscle
         ? `Reduce intensidad y cuida especialmente ${formatMuscleGroup(highestFatigueMuscle).toLowerCase()} antes de volver a empujar.`
@@ -586,14 +654,12 @@ export function selectMapFocus(state: AppStoreData, referenceDate = new Date()) 
 
 export function selectCoachInsights(state: AppStoreData, referenceDate = new Date()) {
   const readiness = selectReadinessSummary(state, referenceDate);
-  const weeklyData = selectWeeklyTrainingData(state, referenceDate);
-  const weeklyVolume = weeklyData.reduce((total, day) => total + day.totalReps, 0);
-  const previousWeekVolume = selectPreviousWeekVolume(state, referenceDate);
+  const weeklyVolume = selectPrimaryWeeklyVolume(state, referenceDate);
   const latestSleep = selectLatestSleepLog(state);
   const latestRecovery = selectLatestRecoveryCheckIn(state);
-  const volumeDelta = previousWeekVolume === 0
+  const volumeDelta = weeklyVolume.previous === 0
     ? null
-    : Math.round(((weeklyVolume - previousWeekVolume) / previousWeekVolume) * 100);
+    : Math.round(((weeklyVolume.current - weeklyVolume.previous) / weeklyVolume.previous) * 100);
   const hasTrainingData = hasTrainingHistory(state);
 
   const insights: Array<{ id: string; tone: 'good' | 'warn' | 'danger'; title: string; body: string }> = [
@@ -615,7 +681,7 @@ export function selectCoachInsights(state: AppStoreData, referenceDate = new Dat
         ? 'Empieza con una rutina breve y consistente para que la comparación semanal tenga contexto real.'
         : volumeDelta === null
           ? 'Ya tienes suficiente base para empezar a comparar tendencia semanal.'
-          : 'Usa esta tendencia para decidir si subir carga o mantenerte estable una semana más.',
+          : `La comparacion usa ${weeklyVolume.metricMode === 'load' ? 'carga total' : 'repeticiones'} para no mezclar metricas distintas en la misma tendencia.`,
     },
     {
       id: 'sleep',
@@ -720,7 +786,7 @@ export function selectExerciseHistory(state: AppStoreData, exerciseId: string): 
         maxWeight = set.weight;
       }
 
-      const oneRepMax = set.weight * (1 + set.reps / 30);
+      const oneRepMax = calculate1RM(set.weight, set.reps);
       if (oneRepMax > max1RM) {
         max1RM = oneRepMax;
       }
@@ -789,10 +855,10 @@ export function selectMuscleGroupStats(state: AppStoreData) {
 }
 
 export function selectProgressMilestones(state: AppStoreData) {
-  const streak = selectTrainingStreak(state);
+  const streak = selectRecoveryConsistencyStreak(state);
+  const weeklyVolume = calculateWeeklyVolume(state.sessions);
+  const weeklyBalancedMuscles = RECOVERY_MUSCLE_GROUP_ORDER.filter((muscleGroup) => weeklyVolume[muscleGroup] >= 6).length;
   const muscleStats = selectMuscleGroupStats(state);
-  const trainedMuscles = muscleStats.filter((stat) => stat.totalReps > 0).length;
-  const balancedWeek = muscleStats.filter((stat) => stat.totalReps >= 20).length >= 3;
 
   return [
     {
@@ -809,15 +875,15 @@ export function selectProgressMilestones(state: AppStoreData) {
     },
     {
       id: 'streak',
-      label: 'Racha de 3 días',
-      description: 'Entrenar o registrar actividad tres días seguidos.',
+      label: 'Constancia de 3 días',
+      description: 'Se mantiene si entrenas o registras recuperacion tres dias seguidos.',
       complete: streak >= 3,
     },
     {
       id: 'balanced-week',
       label: 'Semana equilibrada',
-      description: 'Activar al menos tres grupos musculares con carga significativa.',
-      complete: balancedWeek || trainedMuscles >= 4,
+      description: 'Alcanzar al menos 6 series utiles en cuatro grupos musculares durante la semana.',
+      complete: weeklyBalancedMuscles >= 4 || muscleStats.filter((stat) => stat.totalLoad > 0).length >= 4,
     },
   ];
 }
