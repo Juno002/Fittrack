@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <style>
+      .mass{stroke:#2A313D;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+      .edge{stroke:#EEF3FB;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+      .joint{fill:#2A313D;stroke:#EEF3FB;stroke-width:2.4}
+    </style>
+  </defs>
+  <path d="M32 160H292" stroke="#627389" stroke-opacity=".34" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48 148L98 140" class="mass"/>
+  <path d="M98 140L154 122" class="mass"/>
+  <path d="M154 122L212 102" class="mass"/>
+  <path d="M212 102L246 106" class="mass"/>
+  <path d="M214 102L224 124L228 154" class="mass"/>
+  <path d="M198 108L202 126L200 154" class="mass"/>
+  <path d="M48 148L98 140" class="edge"/>
+  <path d="M98 140L154 122" class="edge"/>
+  <path d="M154 122L212 102" class="edge"/>
+  <path d="M212 102L246 106" class="edge"/>
+  <path d="M214 102L224 124L228 154" class="edge"/>
+  <path d="M198 108L202 126L200 154" class="edge"/>
+  <ellipse cx="259" cy="84" rx="16" ry="18" transform="rotate(-18 259 84)" fill="#2A313D" stroke="#EEF3FB" stroke-width="2.8"/>
+  <path d="M245 80L255 88L270 98" stroke="#94A6BD" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M164 102C180 90 200 88 217 98L212 116C197 111 182 113 169 123L164 102Z" fill="#6EE7B7" fill-opacity=".95"/>
+  <path d="M206 111C214 112 220 117 224 124L218 136C210 132 203 126 199 119L206 111Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <circle cx="98" cy="140" r="8.5" class="joint"/>
+  <circle cx="154" cy="122" r="7.5" class="joint"/>
+  <circle cx="212" cy="102" r="8" class="joint"/>
+  <circle cx="224" cy="124" r="7.5" class="joint"/>
+  <circle cx="202" cy="126" r="7" class="joint"/>
+  <path d="M48 148L34 156" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M98 140L84 154" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M228 154H214" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M200 154H190" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+</svg>

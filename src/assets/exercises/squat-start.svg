@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <style>
+      .mass{stroke:#2A313D;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+      .edge{stroke:#EEF3FB;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+      .joint{fill:#2A313D;stroke:#EEF3FB;stroke-width:2.4}
+    </style>
+  </defs>
+  <path d="M48 170H272" stroke="#627389" stroke-opacity=".34" stroke-width="3" stroke-linecap="round"/>
+  <path d="M160 72V106" class="mass"/>
+  <path d="M160 106L138 112L132 154" class="mass"/>
+  <path d="M160 106L182 112L188 154" class="mass"/>
+  <path d="M142 82L116 88" class="mass"/>
+  <path d="M178 82L204 88" class="mass"/>
+  <path d="M160 72V106" class="edge"/>
+  <path d="M160 106L138 112L132 154" class="edge"/>
+  <path d="M160 106L182 112L188 154" class="edge"/>
+  <path d="M142 82L116 88" class="edge"/>
+  <path d="M178 82L204 88" class="edge"/>
+  <ellipse cx="160" cy="48" rx="16" ry="18" fill="#2A313D" stroke="#EEF3FB" stroke-width="2.8"/>
+  <path d="M132 82C142 74 178 74 190 82L190 108C179 114 142 114 130 108L132 82Z" fill="#2F3744" stroke="#EEF3FB" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M138 108C145 104 151 102 160 102C169 102 175 104 182 108L180 144C173 148 168 150 160 150C152 150 147 148 140 144L138 108Z" fill="#6EE7B7" fill-opacity=".88"/>
+  <circle cx="160" cy="106" r="8" class="joint"/>
+  <circle cx="138" cy="112" r="7.5" class="joint"/>
+  <circle cx="182" cy="112" r="7.5" class="joint"/>
+  <path d="M132 154H116" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M188 154H204" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+</svg>

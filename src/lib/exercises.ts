@@ -5,6 +5,7 @@ import type {
   ExerciseIconName,
   MuscleGroup,
 } from '@/store/types';
+import { isExerciseVisualKey, resolveExerciseVisualKeyCandidate } from '@/lib/exerciseVisuals';
 
 const FALLBACK_CREATED_AT = '2026-01-01T00:00:00.000Z';
 
@@ -13,6 +14,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'push-ups',
     name: 'Flexiones (Push-ups)',
     muscleGroup: 'chest',
+    visualKey: 'push-up',
     isBodyweight: true,
     mechanic: 'compound',
     iconName: 'ArrowDown',
@@ -30,6 +32,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'pull-ups',
     name: 'Dominadas (Pull-ups)',
     muscleGroup: 'back',
+    visualKey: 'pull-up',
     isBodyweight: true,
     mechanic: 'compound',
     iconName: 'ArrowUp',
@@ -46,6 +49,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'squats',
     name: 'Sentadillas (Squats)',
     muscleGroup: 'legs',
+    visualKey: 'squat',
     isBodyweight: true,
     mechanic: 'compound',
     iconName: 'Accessibility',
@@ -56,6 +60,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'lunges',
     name: 'Zancadas (Lunges)',
     muscleGroup: 'legs',
+    visualKey: 'lunge',
     isBodyweight: true,
     mechanic: 'compound',
     iconName: 'Footprints',
@@ -66,6 +71,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'plank',
     name: 'Plancha (Plank)',
     muscleGroup: 'core',
+    visualKey: 'plank',
     isBodyweight: true,
     mechanic: 'isometric',
     iconName: 'Timer',
@@ -76,6 +82,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'dips',
     name: 'Fondos (Dips)',
     muscleGroup: 'arms',
+    visualKey: 'dip',
     isBodyweight: true,
     mechanic: 'compound',
     iconName: 'ArrowDown',
@@ -86,6 +93,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     id: 'wall-handstand',
     name: 'Pino contra pared (Wall Handstand)',
     muscleGroup: 'shoulders',
+    visualKey: 'wall-handstand',
     isBodyweight: true,
     mechanic: 'isometric',
     iconName: 'ArrowUp',
@@ -141,6 +149,12 @@ function sanitizeCatalogEntry(value: Record<string, unknown>): ExerciseCatalogEn
     id: value.id,
     name: value.name,
     muscleGroup: value.muscleGroup,
+    visualKey: resolveExerciseVisualKeyCandidate({
+      id: value.id,
+      name: value.name,
+      muscleGroup: value.muscleGroup,
+      visualKey: isExerciseVisualKey(value.visualKey) ? value.visualKey : undefined,
+    }),
     isBodyweight: Boolean(value.isBodyweight),
     mechanic: typeof value.mechanic === 'string' ? value.mechanic : null,
     description: typeof value.description === 'string' ? value.description : undefined,
@@ -155,6 +169,7 @@ export function toExerciseDefinition(
 ) {
   return {
     ...entry,
+    visualKey: resolveExerciseVisualKeyCandidate(entry),
     iconName: getExerciseIconName(entry.muscleGroup),
     source,
   } satisfies ExerciseDefinition;

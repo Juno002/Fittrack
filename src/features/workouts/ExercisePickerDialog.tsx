@@ -1,14 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 
+import { ExerciseVisual } from '@/components/exercise/ExerciseVisual';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ExerciseIcon } from '@/components/ExerciseIcon';
-import { MuscleHighlight } from '@/components/MuscleHighlight';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
 import { formatMuscleGroup } from '@/lib/display';
+import { getExerciseVisualMuscles } from '@/lib/exerciseVisuals';
 import { getMovementModeLabel, isHomeNoEquipmentMode } from '@/lib/trainingMode';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store';
@@ -28,6 +28,10 @@ interface ExercisePickerDialogProps {
 }
 
 const FILTERS = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'] as const;
+
+function formatMuscleSummary(muscles: MuscleGroup[]) {
+  return muscles.map((muscle) => formatMuscleGroup(muscle)).join(' · ');
+}
 
 export function ExercisePickerDialog({
   open,
@@ -288,6 +292,17 @@ export function ExercisePickerDialog({
                 <div className="space-y-2">
                   {filteredExercises.map((exercise) => {
                     const isExpanded = expandedExerciseId === exercise.id;
+                    const { primaryMuscles } = getExerciseVisualMuscles({
+                      visualKey: exercise.visualKey,
+                      id: exercise.id,
+                      name: exercise.name,
+                      muscleGroup: exercise.muscleGroup,
+                      iconName: exercise.iconName,
+                    });
+                    const primaryLabel = primaryMuscles.length > 0
+                      ? formatMuscleSummary(primaryMuscles)
+                      : formatMuscleGroup(exercise.muscleGroup);
+
                     return (
                       <div
                         key={exercise.id}
@@ -302,13 +317,23 @@ export function ExercisePickerDialog({
                           onClick={() => setExpandedExerciseId(isExpanded ? null : exercise.id)}
                         >
                           <div className="flex min-w-0 items-center gap-4">
-                            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-[#6EE7B7]">
-                              <ExerciseIcon name={exercise.iconName} className="size-6" />
+                            <div className="w-20 shrink-0">
+                              <ExerciseVisual
+                                visualKey={exercise.visualKey}
+                                variant="thumbnail"
+                                exerciseId={exercise.id}
+                                exerciseName={exercise.name}
+                                muscleGroup={exercise.muscleGroup}
+                                iconName={exercise.iconName}
+                              />
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-base font-black text-white">{exercise.name}</p>
-                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
-                                {formatMuscleGroup(exercise.muscleGroup)} • {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
+                              <p className="mt-1 text-xs font-semibold text-zinc-300">
+                                {primaryLabel}
+                              </p>
+                              <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                                {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
                               </p>
                             </div>
                           </div>
@@ -323,10 +348,15 @@ export function ExercisePickerDialog({
 
                         {isExpanded && (
                           <div className="px-5 pb-5 pt-2">
-                             <MuscleHighlight 
-                               muscleGroup={exercise.muscleGroup} 
-                               className="mb-4 bg-black/40 border-none" 
-                             />
+                            <ExerciseVisual
+                              visualKey={exercise.visualKey}
+                              variant="detail"
+                              exerciseId={exercise.id}
+                              exerciseName={exercise.name}
+                              muscleGroup={exercise.muscleGroup}
+                              iconName={exercise.iconName}
+                              className="mb-4"
+                            />
                             <div className="space-y-4 rounded-2xl bg-black/20 p-4 mb-4 text-sm text-zinc-400">
                               {exercise.description ? (
                                 <p>{exercise.description}</p>

@@ -41,6 +41,7 @@ export function buildWorkoutLog(exercise: ExerciseDefinition): WorkoutLog {
     exerciseId: exercise.id,
     exerciseName: exercise.name,
     muscleGroup: exercise.muscleGroup,
+    visualKey: exercise.visualKey,
     iconName: exercise.iconName,
     sets: [createWorkoutSet({ reps: exercise.isBodyweight ? 10 : 8 })],
     isBodyweight: exercise.isBodyweight,

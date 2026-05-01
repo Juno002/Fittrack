@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <style>
+      .mass{stroke:#2A313D;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+      .edge{stroke:#EEF3FB;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+      .joint{fill:#2A313D;stroke:#EEF3FB;stroke-width:2.4}
+    </style>
+  </defs>
+  <path d="M58 34H262" stroke="#94A6BD" stroke-width="6" stroke-linecap="round"/>
+  <path d="M118 34V62" stroke="#94A6BD" stroke-width="4" stroke-linecap="round" stroke-opacity=".45"/>
+  <path d="M202 34V62" stroke="#94A6BD" stroke-width="4" stroke-linecap="round" stroke-opacity=".45"/>
+  <path d="M120 72L136 88L142 126" class="mass"/>
+  <path d="M200 72L184 88L178 126" class="mass"/>
+  <path d="M142 126L160 140L178 126" class="mass"/>
+  <path d="M148 88L160 104L172 88" class="mass"/>
+  <path d="M150 138L144 170" class="mass"/>
+  <path d="M170 138L176 170" class="mass"/>
+  <path d="M118 34L118 72" class="mass"/>
+  <path d="M202 34L202 72" class="mass"/>
+  <path d="M120 72L136 88L142 126" class="edge"/>
+  <path d="M200 72L184 88L178 126" class="edge"/>
+  <path d="M142 126L160 140L178 126" class="edge"/>
+  <path d="M148 88L160 104L172 88" class="edge"/>
+  <path d="M150 138L144 170" class="edge"/>
+  <path d="M170 138L176 170" class="edge"/>
+  <path d="M118 34L118 72" class="edge"/>
+  <path d="M202 34L202 72" class="edge"/>
+  <ellipse cx="160" cy="64" rx="16" ry="18" fill="#2A313D" stroke="#EEF3FB" stroke-width="2.8"/>
+  <path d="M130 88C142 78 178 78 190 88L184 120C173 128 148 128 136 120L130 88Z" fill="#6EE7B7" fill-opacity=".94"/>
+  <path d="M132 94C140 90 148 88 160 88C172 88 180 90 188 94" stroke="#7EF2C2" stroke-width="3" stroke-linecap="round" stroke-opacity=".72"/>
+  <path d="M126 86C120 91 116 97 114 104L122 120C128 115 132 108 133 99L126 86Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <path d="M194 86C200 91 204 97 206 104L198 120C192 115 188 108 187 99L194 86Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <circle cx="118" cy="72" r="7.5" class="joint"/>
+  <circle cx="202" cy="72" r="7.5" class="joint"/>
+  <circle cx="136" cy="88" r="7" class="joint"/>
+  <circle cx="184" cy="88" r="7" class="joint"/>
+  <circle cx="142" cy="126" r="7" class="joint"/>
+  <circle cx="178" cy="126" r="7" class="joint"/>
+  <path d="M144 170L132 178" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M176 170L188 178" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <style>
+      .mass{stroke:#2A313D;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+      .edge{stroke:#EEF3FB;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+      .joint{fill:#2A313D;stroke:#EEF3FB;stroke-width:2.4}
+    </style>
+  </defs>
+  <path d="M58 32H262" stroke="#94A6BD" stroke-width="6" stroke-linecap="round"/>
+  <path d="M118 32V64" class="mass"/>
+  <path d="M202 32V64" class="mass"/>
+  <path d="M118 64L138 78L148 112" class="mass"/>
+  <path d="M202 64L182 78L172 112" class="mass"/>
+  <path d="M148 112L160 122L172 112" class="mass"/>
+  <path d="M150 78L160 88L170 78" class="mass"/>
+  <path d="M154 122L150 156" class="mass"/>
+  <path d="M166 122L170 156" class="mass"/>
+  <path d="M118 32V64" class="edge"/>
+  <path d="M202 32V64" class="edge"/>
+  <path d="M118 64L138 78L148 112" class="edge"/>
+  <path d="M202 64L182 78L172 112" class="edge"/>
+  <path d="M148 112L160 122L172 112" class="edge"/>
+  <path d="M150 78L160 88L170 78" class="edge"/>
+  <path d="M154 122L150 156" class="edge"/>
+  <path d="M166 122L170 156" class="edge"/>
+  <ellipse cx="160" cy="56" rx="16" ry="18" fill="#2A313D" stroke="#EEF3FB" stroke-width="2.8"/>
+  <path d="M136 78C146 70 174 70 184 78L178 104C169 110 151 110 142 104L136 78Z" fill="#6EE7B7" fill-opacity=".95"/>
+  <path d="M130 78C124 84 120 90 118 98L126 110C132 104 136 96 137 88L130 78Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <path d="M190 78C196 84 200 90 202 98L194 110C188 104 184 96 183 88L190 78Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <circle cx="118" cy="64" r="7.5" class="joint"/>
+  <circle cx="202" cy="64" r="7.5" class="joint"/>
+  <circle cx="138" cy="78" r="7" class="joint"/>
+  <circle cx="182" cy="78" r="7" class="joint"/>
+  <circle cx="148" cy="112" r="7" class="joint"/>
+  <circle cx="172" cy="112" r="7" class="joint"/>
+</svg>

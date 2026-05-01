@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { finalizeDraftSession } from '@/lib/workout';
+import { buildWorkoutLog, finalizeDraftSession } from '@/lib/workout';
 import {
   createInitialAppStoreData,
   migratePersistedState,
@@ -21,6 +21,7 @@ describe('store migration', () => {
           id: 'e1',
           name: 'Push-up',
           muscleGroup: 'chest',
+          visualKey: 'push-up',
           iconName: 'ArrowDown',
           isBodyweight: true,
         },
@@ -126,6 +127,7 @@ describe('store migration', () => {
       notes: 'Muy cargado',
     });
     expect(migrated.draftSession?.logs[0]?.muscleGroup).toBe('chest');
+    expect(migrated.draftSession?.logs[0]?.visualKey).toBe('push-up');
     expect(migrated.settings.connectedSignals).toEqual({ sleep: true, food: true, recovery: true });
     expect(migrated.settings.trainingSchedule).toEqual({ days: ['mon', 'wed', 'fri'], preferredTime: 'afternoon' });
     expect(migrated.settings.reminders).toEqual({ enabled: false, time: '18:30' });
@@ -234,6 +236,7 @@ describe('draft finalization', () => {
             exerciseId: 'push-up',
             exerciseName: 'Push-up',
             muscleGroup: 'chest',
+            visualKey: 'push-up',
             iconName: 'ArrowDown',
             isBodyweight: true,
             sets: [
@@ -249,5 +252,20 @@ describe('draft finalization', () => {
     expect(session).not.toBeNull();
     expect(session?.logs[0]?.sets).toHaveLength(1);
     expect(session?.effort).toBe(4);
+  });
+
+  it('infers visualKey for custom aliases and preserves it in workout logs', () => {
+    const exercise = useStore.getState().saveCustomExercise({
+      id: 'Push-Up_Wide',
+      name: 'Push-Up Wide',
+      muscleGroup: 'chest',
+      isBodyweight: true,
+      mechanic: 'compound',
+    });
+
+    expect(exercise.visualKey).toBe('push-up');
+
+    const log = buildWorkoutLog(exercise);
+    expect(log.visualKey).toBe('push-up');
   });
 });

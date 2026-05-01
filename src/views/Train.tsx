@@ -3,14 +3,15 @@ import { Search, Settings2, Sparkles, Trophy, X } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ExerciseDetail } from '@/components/ExerciseDetail';
-import { ExerciseIcon } from '@/components/ExerciseIcon';
+import { ExerciseVisual } from '@/components/exercise/ExerciseVisual';
 import { HeaderActionButton } from '@/components/HeaderActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog';
-import { buildGuidedRoutinePreset, type GuidedRoutinePresetId } from '@/lib/guidedWorkout';
-import { useStoreData } from '@/hooks/useStoreData';
 import { formatMuscleGroup } from '@/lib/display';
+import { buildGuidedRoutinePreset, type GuidedRoutinePresetId } from '@/lib/guidedWorkout';
+import { getExerciseVisualMuscles } from '@/lib/exerciseVisuals';
+import { useStoreData } from '@/hooks/useStoreData';
 import {
   filterTemplatesByTrainingMode,
   getMovementModeLabel,
@@ -29,6 +30,10 @@ interface TrainProps {
 }
 
 const FILTERS: ('all' | MuscleGroup)[] = ['all', 'chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+
+function formatMuscleSummary(muscles: MuscleGroup[]) {
+  return muscles.map((muscle) => formatMuscleGroup(muscle)).join(' · ');
+}
 
 export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
   const { exercises, isLoading } = useExerciseCatalog();
@@ -333,6 +338,16 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                 ) : (
                   filteredExercises.map((exercise) => {
                     const exerciseFatigue = fatigue[exercise.muscleGroup] || 0;
+                    const { primaryMuscles } = getExerciseVisualMuscles({
+                      visualKey: exercise.visualKey,
+                      id: exercise.id,
+                      name: exercise.name,
+                      muscleGroup: exercise.muscleGroup,
+                      iconName: exercise.iconName,
+                    });
+                    const primaryLabel = primaryMuscles.length > 0
+                      ? formatMuscleSummary(primaryMuscles)
+                      : formatMuscleGroup(exercise.muscleGroup);
                     const statusLabel = !hasTrainingData
                       ? 'Base'
                       : readiness.readinessGate === 'recover' && exerciseFatigue < 45
@@ -359,20 +374,42 @@ export function Train({ onOpenWorkout, onOpenProfile }: TrainProps) {
                         onClick={() => setSelectedExercise(exercise)}
                         className="app-panel-soft flex w-full items-start gap-4 rounded-[1.9rem] p-4 text-left transition-all hover:border-white/12"
                       >
-                        <div className="flex size-14 shrink-0 items-center justify-center rounded-[1.4rem] bg-white/5 text-[#6EE7B7]">
-                          <ExerciseIcon name={exercise.iconName} className="size-7" />
+                        <div className="w-28 shrink-0">
+                          <ExerciseVisual
+                            visualKey={exercise.visualKey}
+                            variant="thumbnail"
+                            exerciseId={exercise.id}
+                            exerciseName={exercise.name}
+                            muscleGroup={exercise.muscleGroup}
+                            iconName={exercise.iconName}
+                          />
                         </div>
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="truncate text-sm font-black text-white">{exercise.name}</p>
-                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
-                                {formatMuscleGroup(exercise.muscleGroup)} · {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
+                              <p className="mt-1 text-[11px] font-semibold text-zinc-300">
+                                {primaryLabel}
                               </p>
                             </div>
                             <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${statusClass}`}>
                               {statusLabel}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-300">
+                              {exercise.mechanic === 'compound'
+                                ? 'Compuesto'
+                                : exercise.mechanic === 'isolation'
+                                  ? 'Aislamiento'
+                                  : exercise.mechanic === 'isometric'
+                                    ? 'Isométrico'
+                                    : 'Movimiento'}
+                            </span>
+                            <span className="rounded-full border border-[#6EE7B7]/14 bg-[#6EE7B7]/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#6EE7B7]">
+                              {getMovementModeLabel(exercise.isBodyweight, trainingMode)}
                             </span>
                           </div>
 

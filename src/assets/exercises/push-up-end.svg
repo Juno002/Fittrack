@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <style>
+      .mass{stroke:#2A313D;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+      .edge{stroke:#EEF3FB;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+      .joint{fill:#2A313D;stroke:#EEF3FB;stroke-width:2.4}
+    </style>
+  </defs>
+  <path d="M30 164H292" stroke="#627389" stroke-opacity=".34" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48 150L102 146" class="mass"/>
+  <path d="M102 146L164 128" class="mass"/>
+  <path d="M164 128L220 118" class="mass"/>
+  <path d="M220 118L248 122" class="mass"/>
+  <path d="M222 118L238 132L240 158" class="mass"/>
+  <path d="M206 120L198 136L194 158" class="mass"/>
+  <path d="M48 150L102 146" class="edge"/>
+  <path d="M102 146L164 128" class="edge"/>
+  <path d="M164 128L220 118" class="edge"/>
+  <path d="M220 118L248 122" class="edge"/>
+  <path d="M222 118L238 132L240 158" class="edge"/>
+  <path d="M206 120L198 136L194 158" class="edge"/>
+  <ellipse cx="260" cy="104" rx="16" ry="18" transform="rotate(-16 260 104)" fill="#2A313D" stroke="#EEF3FB" stroke-width="2.8"/>
+  <path d="M246 100L258 108L272 116" stroke="#94A6BD" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M172 114C187 107 206 107 220 115L213 130C198 127 184 129 173 137L172 114Z" fill="#6EE7B7" fill-opacity=".95"/>
+  <path d="M206 123C216 123 225 127 231 133L227 145C217 142 208 137 202 131L206 123Z" fill="#7AB9FF" fill-opacity=".78"/>
+  <path d="M161 127C170 124 179 124 186 126L184 139C175 139 167 140 160 142L161 127Z" fill="#7AB9FF" fill-opacity=".5"/>
+  <circle cx="102" cy="146" r="8.5" class="joint"/>
+  <circle cx="164" cy="128" r="7.5" class="joint"/>
+  <circle cx="220" cy="118" r="8" class="joint"/>
+  <circle cx="238" cy="132" r="7.5" class="joint"/>
+  <circle cx="198" cy="136" r="7" class="joint"/>
+  <path d="M48 150L34 158" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M102 146L88 158" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M240 158H224" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M194 158H184" stroke="#9AABBF" stroke-width="4" stroke-linecap="round"/>
+</svg>

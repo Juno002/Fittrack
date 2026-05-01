@@ -22,6 +22,18 @@ export const EXERCISE_ICON_NAMES = [
 
 export type ExerciseIconName = (typeof EXERCISE_ICON_NAMES)[number];
 
+export const EXERCISE_VISUAL_KEYS = [
+  'push-up',
+  'pull-up',
+  'squat',
+  'lunge',
+  'plank',
+  'dip',
+  'wall-handstand',
+] as const;
+
+export type ExerciseVisualKey = (typeof EXERCISE_VISUAL_KEYS)[number];
+
 export const TRAINING_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 export type TrainingDay = (typeof TRAINING_DAYS)[number];
 
@@ -35,6 +47,7 @@ export interface ExerciseCatalogEntry {
   id: string;
   name: string;
   muscleGroup: MuscleGroup;
+  visualKey?: ExerciseVisualKey;
   isBodyweight: boolean;
   mechanic: string | null;
   description?: string;
@@ -62,6 +75,7 @@ export interface WorkoutLog {
   exerciseId: string;
   exerciseName: string;
   muscleGroup: MuscleGroup;
+  visualKey?: ExerciseVisualKey;
   iconName: ExerciseIconName;
   sets: WorkoutSet[];
   isBodyweight: boolean;

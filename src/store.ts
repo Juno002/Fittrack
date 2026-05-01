@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { dayKeyToIso, toDayKey } from '@/lib/dates';
+import { isExerciseVisualKey, resolveExerciseVisualKeyCandidate } from '@/lib/exerciseVisuals';
 import { getExerciseIconName, STARTER_EXERCISES } from '@/lib/exercises';
 import {
   clampRestDuration,
@@ -22,6 +23,7 @@ import type {
   DraftSession,
   DraftSessionSeed,
   ExerciseDefinition,
+  ExerciseVisualKey,
   FoodEntry,
   MacroGoal,
   PreferredTrainingTime,
@@ -48,6 +50,7 @@ export type {
   ExerciseCatalogEntry,
   ExerciseDefinition,
   ExerciseIconName,
+  ExerciseVisualKey,
   FoodEntry,
   MacroGoal,
   MuscleGroup,
@@ -65,9 +68,17 @@ export type {
 } from '@/store/types';
 
 export const STORAGE_KEY = 'fittrack-storage';
-const STORAGE_VERSION = 5;
+const STORAGE_VERSION = 6;
 const MUSCLE_GROUP_SET = new Set(MUSCLE_GROUPS);
 const TRAINING_DAY_SET = new Set<TrainingDay>(TRAINING_DAYS);
+
+interface LegacyExerciseIndexEntry {
+  name: string;
+  muscleGroup: string;
+  iconName?: string;
+  isBodyweight?: boolean;
+  visualKey?: ExerciseVisualKey;
+}
 
 const DEFAULT_PROFILE: UserProfile = {
   name: '',
@@ -192,7 +203,7 @@ export function createInitialAppStoreData(): AppStoreData {
 }
 
 function createLegacyExerciseIndex(rawExercises: unknown) {
-  const index = new Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>();
+  const index = new Map<string, LegacyExerciseIndexEntry>();
 
   if (!Array.isArray(rawExercises)) {
     return index;
@@ -213,6 +224,7 @@ function createLegacyExerciseIndex(rawExercises: unknown) {
       muscleGroup: rawExercise.muscleGroup,
       iconName: typeof rawExercise.iconName === 'string' ? rawExercise.iconName : undefined,
       isBodyweight: Boolean(rawExercise.isBodyweight),
+      visualKey: isExerciseVisualKey(rawExercise.visualKey) ? rawExercise.visualKey : undefined,
     });
   });
 
@@ -230,7 +242,7 @@ function isMacroGoal(value: unknown): value is MacroGoal {
 
 function normalizeWorkoutLog(
   rawLog: unknown,
-  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+  exerciseIndex: Map<string, LegacyExerciseIndexEntry>,
 ): WorkoutLog | null {
   if (!rawLog || typeof rawLog !== 'object') {
     return null;
@@ -250,6 +262,12 @@ function normalizeWorkoutLog(
       ? legacyLog.exerciseName
       : exercise?.name ?? exerciseId.replace(/_/g, ' '),
     muscleGroup,
+    visualKey: resolveExerciseVisualKeyCandidate({
+      id: exerciseId,
+      name: typeof legacyLog.exerciseName === 'string' ? legacyLog.exerciseName : exercise?.name,
+      muscleGroup,
+      visualKey: isExerciseVisualKey(legacyLog.visualKey) ? legacyLog.visualKey : exercise?.visualKey,
+    }),
     iconName: typeof legacyLog.iconName === 'string'
       ? (legacyLog.iconName as WorkoutLog['iconName'])
       : getExerciseIconName(muscleGroup, exercise?.iconName),
@@ -262,7 +280,7 @@ function normalizeWorkoutLog(
 
 function normalizeSession(
   rawSession: unknown,
-  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+  exerciseIndex: Map<string, LegacyExerciseIndexEntry>,
 ): WorkoutSession | null {
   if (!rawSession || typeof rawSession !== 'object') {
     return null;
@@ -294,7 +312,7 @@ function normalizeSession(
 
 function normalizeTemplate(
   rawTemplate: unknown,
-  exerciseIndex: Map<string, { name: string; muscleGroup: string; iconName?: string; isBodyweight?: boolean }>,
+  exerciseIndex: Map<string, LegacyExerciseIndexEntry>,
 ): WorkoutTemplate | null {
   if (!rawTemplate || typeof rawTemplate !== 'object') {
     return null;
@@ -528,6 +546,12 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         id: value.id,
         name: value.name,
         muscleGroup: value.muscleGroup as CustomExercise['muscleGroup'],
+        visualKey: resolveExerciseVisualKeyCandidate({
+          id: value.id,
+          name: value.name,
+          muscleGroup: value.muscleGroup as CustomExercise['muscleGroup'],
+          visualKey: isExerciseVisualKey(value.visualKey) ? value.visualKey : undefined,
+        }),
         isBodyweight: Boolean(value.isBodyweight),
         mechanic: typeof value.mechanic === 'string' ? value.mechanic : null,
         iconName: getExerciseIconName(value.muscleGroup as CustomExercise['muscleGroup'], typeof value.iconName === 'string' ? value.iconName : undefined),
@@ -556,6 +580,7 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
       muscleGroup: exercise.muscleGroup,
       iconName: exercise.iconName,
       isBodyweight: exercise.isBodyweight,
+      visualKey: exercise.visualKey,
     });
   });
 
@@ -643,6 +668,12 @@ export const useStore = create<AppState>()(
           id: exerciseInput.id,
           name: exerciseInput.name,
           muscleGroup: exerciseInput.muscleGroup,
+          visualKey: resolveExerciseVisualKeyCandidate({
+            id: exerciseInput.id,
+            name: exerciseInput.name,
+            muscleGroup: exerciseInput.muscleGroup,
+            visualKey: exerciseInput.visualKey,
+          }),
           isBodyweight: exerciseInput.isBodyweight,
           mechanic: exerciseInput.mechanic,
           iconName: exerciseInput.iconName ?? getExerciseIconName(exerciseInput.muscleGroup),
