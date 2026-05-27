@@ -42,6 +42,7 @@ interface GuidedMainStep {
   title: string;
   subtitle: string;
   detail: string;
+  cues: string[];
   logId: string;
   setIndex: number;
   totalSets: number;
@@ -578,7 +579,7 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
   const copy = getGuidedFlowCopy(category);
   const steps: GuidedWorkoutStep[] = [];
 
-  copy.warmup.forEach((step, index) => {
+  copy.warmup.slice(0, 2).forEach((step, index) => {
     steps.push({
       id: `warmup-${index}`,
       kind: 'warmup',
@@ -586,11 +587,6 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
     });
   });
 
-  steps.push({
-    id: 'transition-0',
-    kind: 'transition',
-    ...copy.transition,
-  });
 
   const mainSteps = draftSession.logs.flatMap((log) =>
     log.sets.map((set, setIndex) => ({
@@ -601,6 +597,7 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
       detail: log.isBodyweight
         ? 'No necesitas registrar peso. Completa las repeticiones con tecnica limpia y marca la serie al terminar.'
         : 'Sigue la carga objetivo, mantén el control y registra la serie al terminar.',
+      cues: log.formGuidance ?? [],
       logId: log.id,
       setIndex,
       totalSets: log.sets.length,
@@ -608,6 +605,7 @@ export function buildGuidedWorkoutSteps(draftSession: DraftSession): GuidedWorko
       weight: set.weight,
       isBodyweight: log.isBodyweight,
       muscleGroup: log.muscleGroup,
+      illustrationUrl: log.illustrationUrl,
     })),
   );
 

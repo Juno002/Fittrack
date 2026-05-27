@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, ArrowRight, CheckCircle, Pause, Play, SkipForward, Timer as TimerIcon } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle, Pause, Play, SkipForward, Timer as TimerIcon, X, Minus, Plus, HelpCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ExerciseIcon } from '@/components/ExerciseIcon';
@@ -9,6 +9,7 @@ import { formatMuscleGroup } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import { buildGuidedWorkoutSteps } from '@/lib/guidedWorkout';
 import type { DraftSession } from '@/store/types';
+import EXERCISE_CATALOG from '@/data/parsedExercises.json';
 
 interface WorkoutFocusViewProps {
   draftSession: DraftSession;
@@ -16,9 +17,10 @@ interface WorkoutFocusViewProps {
   guidedStepIndex: number;
   onAdvanceGuidedStep: () => void;
   onClearStoredRest: () => void;
-  onToggleSetCompleted: (logId: string, setIndex: number) => void;
+  onToggleSetCompleted: (logId: string, setIndex: number, completedReps?: number) => void;
   onFinish: () => void;
   onGoToEdit: () => void;
+  onDiscard: () => void;
 }
 
 function formatTime(seconds: number) {
@@ -95,6 +97,7 @@ export function WorkoutFocusView({
   onToggleSetCompleted,
   onFinish,
   onGoToEdit,
+  onDiscard,
 }: WorkoutFocusViewProps) {
   const guidedSteps = useMemo(() => buildGuidedWorkoutSteps(draftSession), [draftSession]);
   const currentStep = guidedStepIndex < guidedSteps.length ? guidedSteps[guidedStepIndex] : null;
@@ -106,11 +109,13 @@ export function WorkoutFocusView({
     currentStep && currentStep.kind !== 'main' ? currentStep.durationSeconds : 0,
   );
   const [isPaused, setIsPaused] = useState(false);
+  const [partialReps, setPartialReps] = useState<number | null>(null);
 
   useEffect(() => {
     if (!currentStep || currentStep.kind === 'main') {
       setRemainingSeconds(0);
       setIsPaused(false);
+      setPartialReps(null);
       return;
     }
 
@@ -370,14 +375,24 @@ export function WorkoutFocusView({
               {formatTime(elapsedSeconds)}
             </span>
           </div>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white backdrop-blur-md"
-            onClick={onGoToEdit}
-            aria-label="Editar sesión"
-          >
-            <Activity className="size-5" />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white backdrop-blur-md"
+              onClick={onGoToEdit}
+              aria-label="Editar sesión"
+            >
+              <Activity className="size-5" />
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="flex size-10 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 backdrop-blur-md hover:bg-red-500/20"
+              onClick={onDiscard}
+              aria-label="Cancelar sesión"
+            >
+              <X className="size-5" />
+            </motion.button>
+          </div>
         </div>
       </div>
 
@@ -400,32 +415,49 @@ export function WorkoutFocusView({
             transition={{ type: 'spring', damping: 20, stiffness: 100 }}
             className="flex w-full flex-col items-center"
           >
-            <div className="group relative mb-10">
-              <div className="absolute inset-0 scale-150 rounded-full bg-[#6EE7B7]/20 opacity-10 blur-[60px] transition-opacity group-hover:opacity-30" />
-              <div className="relative flex size-36 items-center justify-center rounded-[3rem] border border-white/10 bg-white/5 text-white shadow-inner">
-                <ExerciseIcon name={draftSession.logs.find((entry) => entry.id === currentStep.logId)?.iconName ?? 'Activity'} className="size-20" />
+            <motion.div className="mb-8 w-full max-w-sm rounded-[2.6rem] border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl">
+              <div className="group relative mb-8 flex w-full justify-center">
+                <div className="absolute inset-0 scale-150 rounded-full bg-[#6EE7B7]/20 opacity-10 blur-[60px] transition-opacity group-hover:opacity-30" />
+                {currentStep.illustrationUrl ? (
+                  <div className="relative flex h-56 w-full items-center justify-center">
+                    <img src={currentStep.illustrationUrl} alt={currentStep.title} className="h-full object-contain drop-shadow-[0_0_30px_rgba(110,231,183,0.15)]" />
+                  </div>
+                ) : (
+                  <div className="relative flex size-32 items-center justify-center rounded-[3rem] border border-white/10 bg-white/5 text-white shadow-inner">
+                    <ExerciseIcon name={draftSession.logs.find((entry) => entry.id === currentStep.logId)?.iconName ?? 'Activity'} className="size-16" />
+                  </div>
+                )}
               </div>
-            </div>
 
-            <div className="mb-8 w-full px-4 text-center">
-              <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+              <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
                 <span className="rounded-full border border-[#6EE7B7]/18 bg-[#6EE7B7]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-[#6EE7B7]">
-                  Bloque principal
+                  Principal
                 </span>
                 <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
-                  Paso {currentStepNumber} de {guidedSteps.length}
+                  {currentStepNumber} de {guidedSteps.length}
                 </span>
                 <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">
                   {formatMuscleGroup(currentStep.muscleGroup)}
                 </span>
               </div>
-              <h2 className="mb-4 text-4xl font-black leading-[1.1] tracking-tight text-white text-balance">
-                {currentStep.title}
-              </h2>
+              <div className="mb-3 flex items-center justify-center gap-3">
+                <h2 className="text-3xl font-black leading-[1.1] tracking-tight text-white text-balance">
+                  {currentStep.title}
+                </h2>
+                <a
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(currentStep.title + ' exercise tutorial')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Ver tutorial en YouTube"
+                >
+                  <HelpCircle className="size-5" />
+                </a>
+              </div>
               <p className="mx-auto max-w-sm text-sm leading-relaxed text-zinc-400">
                 {currentStep.subtitle}
               </p>
-            </div>
+            </motion.div>
 
             <div className="w-full space-y-5">
               <div className="grid gap-5 md:grid-cols-2">
@@ -460,6 +492,36 @@ export function WorkoutFocusView({
                 </div>
               </div>
 
+              {(() => {
+                let displayCues = currentStep.cues;
+                if (!displayCues || displayCues.length === 0) {
+                  const log = draftSession.logs.find((entry) => entry.id === currentStep.logId);
+                  if (log) {
+                    const catalogEntry = EXERCISE_CATALOG.find((e) => e.id === log.exerciseId);
+                    if (catalogEntry?.formGuidance) {
+                      displayCues = catalogEntry.formGuidance;
+                    }
+                  }
+                }
+
+                if (displayCues && displayCues.length > 0) {
+                  return (
+                    <div className="w-full rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-md text-left">
+                      <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Cómo hacerlo</p>
+                      <div className="mt-4 space-y-3">
+                        {displayCues.map((cue, idx) => (
+                          <div key={idx} className="flex items-start gap-3">
+                            <span className="mt-1.5 size-2 shrink-0 rounded-full bg-[#6EE7B7]" />
+                            <p className="text-sm leading-relaxed text-zinc-300">{cue}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {nextStep ? (
                 <div className="rounded-[2rem] border border-white/10 bg-[#0f1724] px-5 py-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">Después de este bloque</p>
@@ -480,21 +542,44 @@ export function WorkoutFocusView({
                 </div>
               ) : null}
 
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className="relative flex h-20 w-full shrink-0 items-center justify-center overflow-hidden rounded-[3.5rem] bg-[#6EE7B7] text-base font-black uppercase tracking-[0.26em] text-[#080B11] shadow-[0_20px_60px_rgba(110,231,183,0.3)] transition-all group"
-                onClick={() => {
-                  onToggleSetCompleted(currentStep.logId, currentStep.setIndex);
-                  onClearStoredRest();
-                  onAdvanceGuidedStep();
-                }}
-              >
-                <div className="absolute inset-0 translate-y-full bg-white/30 transition-transform duration-500 group-hover:translate-y-0" />
-                <span className="relative z-10 flex items-center gap-3">
-                  Terminé mis repeticiones
-                  <CheckCircle className="size-6" />
-                </span>
-              </motion.button>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-white/5 p-4 pl-6">
+                  <p className="text-[12px] font-black uppercase tracking-[0.1em] text-zinc-400">¿Reps logradas?</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="flex size-12 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 active:scale-95"
+                      onClick={() => setPartialReps((prev) => Math.max(0, (prev ?? currentStep.reps) - 1))}
+                    >
+                      <Minus className="size-5" />
+                    </button>
+                    <span className="w-12 text-center text-3xl font-black text-white tabular-nums">
+                      {partialReps ?? currentStep.reps}
+                    </span>
+                    <button
+                      className="flex size-12 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 active:scale-95"
+                      onClick={() => setPartialReps((prev) => (prev ?? currentStep.reps) + 1)}
+                    >
+                      <Plus className="size-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  className="relative flex h-20 w-full shrink-0 items-center justify-center overflow-hidden rounded-[3.5rem] bg-[#6EE7B7] text-base font-black uppercase tracking-[0.26em] text-[#080B11] shadow-[0_20px_60px_rgba(110,231,183,0.3)] transition-all group"
+                  onClick={() => {
+                    onToggleSetCompleted(currentStep.logId, currentStep.setIndex, partialReps ?? currentStep.reps);
+                    onClearStoredRest();
+                    onAdvanceGuidedStep();
+                  }}
+                >
+                  <div className="absolute inset-0 translate-y-full bg-white/30 transition-transform duration-500 group-hover:translate-y-0" />
+                  <span className="relative z-10 flex items-center gap-3">
+                    Registrar Serie
+                    <CheckCircle className="size-6" />
+                  </span>
+                </motion.button>
+              </div>
             </div>
           </motion.div>
         </AnimatePresence>

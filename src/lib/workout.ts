@@ -43,8 +43,10 @@ export function buildWorkoutLog(exercise: ExerciseDefinition): WorkoutLog {
     muscleGroup: exercise.muscleGroup,
     visualKey: exercise.visualKey,
     iconName: exercise.iconName,
+    illustrationUrl: exercise.illustrationUrl,
     sets: [createWorkoutSet({ reps: exercise.isBodyweight ? 10 : 8 })],
     isBodyweight: exercise.isBodyweight,
+    formGuidance: exercise.formGuidance,
   };
 }
 

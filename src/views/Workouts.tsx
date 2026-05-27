@@ -576,11 +576,12 @@ export function Workouts({ onExit }: WorkoutsProps) {
                 guidedStepIndex={guidedStepIndex}
                 onAdvanceGuidedStep={handleAdvanceGuidedStep}
                 onClearStoredRest={clearDraftRestTimer}
-                onToggleSetCompleted={(logId, setIndex) => {
-                  toggleDraftSetCompleted(logId, setIndex);
+                onToggleSetCompleted={(logId, setIndex, completedReps) => {
+                  toggleDraftSetCompleted(logId, setIndex, completedReps);
                 }}
                 onFinish={() => setIsFinishing(true)}
                 onGoToEdit={() => setViewMode('editar')}
+                onDiscard={() => setIsDiscardDialogOpen(true)}
               />
             </motion.div>
           ) : (

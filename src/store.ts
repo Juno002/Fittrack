@@ -78,6 +78,8 @@ interface LegacyExerciseIndexEntry {
   iconName?: string;
   isBodyweight?: boolean;
   visualKey?: ExerciseVisualKey;
+  illustrationUrl?: string;
+  formGuidance?: string[];
 }
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -175,7 +177,7 @@ interface AppActions {
   addSetToDraftLog: (logId: string) => void;
   updateDraftSet: (logId: string, setIndex: number, changes: Partial<WorkoutSet>) => void;
   removeDraftSet: (logId: string, setIndex: number) => void;
-  toggleDraftSetCompleted: (logId: string, setIndex: number) => void;
+  toggleDraftSetCompleted: (logId: string, setIndex: number, completedReps?: number) => void;
   finalizeDraftSession: (effort: number) => WorkoutSession | null;
   deleteSession: (id: string) => void;
   saveTemplate: (name: string, logs: WorkoutLog[]) => void;
@@ -275,6 +277,8 @@ function normalizeWorkoutLog(
     sets: Array.isArray(legacyLog.sets)
       ? legacyLog.sets.map((set) => createWorkoutSet(set as Partial<WorkoutSet>))
       : [],
+    illustrationUrl: typeof legacyLog.illustrationUrl === 'string' ? legacyLog.illustrationUrl : exercise?.illustrationUrl,
+    formGuidance: Array.isArray(legacyLog.formGuidance) ? legacyLog.formGuidance.map(String) : exercise?.formGuidance,
   };
 }
 
@@ -542,6 +546,8 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         return null;
       }
 
+      const defaultEx = STARTER_EXERCISES.find(e => e.id === value.id);
+
       return {
         id: value.id,
         name: value.name,
@@ -557,6 +563,8 @@ function normalizeCustomExercises(rawExercises: unknown): CustomExercise[] {
         iconName: getExerciseIconName(value.muscleGroup as CustomExercise['muscleGroup'], typeof value.iconName === 'string' ? value.iconName : undefined),
         source: value.source === 'custom' ? 'custom' : 'legacy',
         createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
+        illustrationUrl: typeof value.illustrationUrl === 'string' ? value.illustrationUrl : defaultEx?.illustrationUrl,
+        formGuidance: Array.isArray(value.formGuidance) ? value.formGuidance.map(String) : defaultEx?.formGuidance,
       } as CustomExercise;
     })
     .filter((exercise): exercise is CustomExercise => exercise !== null);
@@ -581,6 +589,8 @@ export function migratePersistedState(persistedState: unknown): AppStoreData {
       iconName: exercise.iconName,
       isBodyweight: exercise.isBodyweight,
       visualKey: exercise.visualKey,
+      illustrationUrl: exercise.illustrationUrl,
+      formGuidance: exercise.formGuidance,
     });
   });
 
@@ -916,10 +926,10 @@ export const useStore = create<AppState>()(
             : state.draftSession,
         })),
 
-      toggleDraftSetCompleted: (logId, setIndex) =>
+      toggleDraftSetCompleted: (logId, setIndex, completedReps) =>
         set((state) => {
           if (!state.draftSession) {
-            return { draftSession: state.draftSession };
+            return state;
           }
 
           let restTimerEndsAt = state.draftSession.restTimerEndsAt;
@@ -942,7 +952,7 @@ export const useStore = create<AppState>()(
                   restTimerEndsAt = new Date(Date.now() + (state.draftSession?.restDurationSeconds ?? DEFAULT_REST_DURATION_SECONDS) * 1000).toISOString();
                 }
 
-                return { ...set, completed };
+                return { ...set, completed, completedReps: completedReps ?? set.reps };
               }),
             };
           });

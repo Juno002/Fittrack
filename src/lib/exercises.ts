@@ -26,7 +26,8 @@ export const STARTER_EXERCISES: CustomExercise[] = [
       'Desciende hasta que el pecho roce el suelo',
       'Extiende completamente los codos en la fase de empuje'
     ],
-    videoUrl: 'https://www.youtube.com/watch?v=IODxDxX7oi4'
+    videoUrl: 'https://www.youtube.com/watch?v=IODxDxX7oi4',
+    illustrationUrl: '/assets/Tren Superior/TREN SUPERIOR SVG/Pushups.svg'
   },
   {
     id: 'pull-ups',
@@ -55,6 +56,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     iconName: 'Accessibility',
     source: 'legacy',
     createdAt: FALLBACK_CREATED_AT,
+    illustrationUrl: '/assets/Tren Inferior/SVG TREN INFERIOR/limpios/SQUAT.svg'
   },
   {
     id: 'lunges',
@@ -66,6 +68,7 @@ export const STARTER_EXERCISES: CustomExercise[] = [
     iconName: 'Footprints',
     source: 'legacy',
     createdAt: FALLBACK_CREATED_AT,
+    illustrationUrl: '/assets/Tren Inferior/SVG TREN INFERIOR/Bodyweight Walking Lunge.svg'
   },
   {
     id: 'plank',
@@ -160,6 +163,7 @@ function sanitizeCatalogEntry(value: Record<string, unknown>): ExerciseCatalogEn
     description: typeof value.description === 'string' ? value.description : undefined,
     formGuidance: Array.isArray(value.formGuidance) ? value.formGuidance.map(String) : undefined,
     videoUrl: typeof value.videoUrl === 'string' ? value.videoUrl : undefined,
+    illustrationUrl: typeof value.illustrationUrl === 'string' ? value.illustrationUrl : undefined,
   };
 }
 

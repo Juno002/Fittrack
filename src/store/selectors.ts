@@ -766,6 +766,8 @@ export interface ExerciseHistoryEntry {
   maxWeight: number;
   estimated1RM: number;
   totalVolume: number;
+  totalReps: number;
+  maxReps: number;
 }
 
 export function selectExerciseHistory(state: AppStoreData, exerciseId: string): ExerciseHistoryEntry[] {
@@ -780,27 +782,37 @@ export function selectExerciseHistory(state: AppStoreData, exerciseId: string): 
     let maxWeight = 0;
     let max1RM = 0;
     let totalVolume = 0;
+    let totalReps = 0;
+    let maxReps = 0;
 
     log.sets.filter((set) => set.completed).forEach((set) => {
+      const repsDone = set.completedReps ?? set.reps;
+      
       if (set.weight > maxWeight) {
         maxWeight = set.weight;
       }
 
-      const oneRepMax = calculate1RM(set.weight, set.reps);
+      const oneRepMax = calculate1RM(set.weight, repsDone);
       if (oneRepMax > max1RM) {
         max1RM = oneRepMax;
       }
 
-      totalVolume += set.reps * set.weight;
+      totalVolume += repsDone * set.weight;
+      totalReps += repsDone;
+      if (repsDone > maxReps) {
+        maxReps = repsDone;
+      }
     });
 
-    if (totalVolume > 0 || (log.isBodyweight && log.sets.some((set) => set.completed))) {
+    if (totalVolume > 0 || totalReps > 0 || (log.isBodyweight && log.sets.some((set) => set.completed))) {
       history.push({
         dayKey: session.dayKey,
         performedAt: session.performedAt,
         maxWeight,
         estimated1RM: max1RM,
         totalVolume,
+        totalReps,
+        maxReps,
       });
     }
   });

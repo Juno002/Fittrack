@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Moon, Settings2, Sparkles, TrendingUp, Trophy } from 'lucide-react';
 
 import { HeaderActionButton } from '@/components/HeaderActionButton';
@@ -18,6 +18,7 @@ import {
   selectRecoveryConsistencyStreak,
   selectSleepChartData,
 } from '@/store/selectors';
+import { ExerciseProgressDialog } from '@/features/stats/ExerciseProgressDialog';
 
 function MetricTile({
   label,
@@ -59,6 +60,7 @@ export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
   const muscleGroupStats = useMemo(() => selectMuscleGroupStats(storeData), [storeData]);
   const milestones = useMemo(() => selectProgressMilestones(storeData), [storeData]);
   const currentWeekLabel = useMemo(() => selectCurrentWeekLabel(), []);
+  const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const personalRecordEntries = useMemo(
     () => (Object.entries(personalRecords) as Array<[string, number]>)
       .sort(([, left], [, right]) => right - left)
@@ -146,15 +148,26 @@ export function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
               icon={Sparkles}
               iconClass="text-[#F9B06E]"
             />
-            <MetricTile
-              label="Récords"
-              value={String(personalRecordEntries.length)}
-              detail="Ejercicios con mejor marca desbloqueada hasta ahora."
-              icon={Trophy}
-              iconClass="text-[#C4B5FD]"
-            />
+            <button 
+              type="button" 
+              onClick={() => setIsProgressDialogOpen(true)}
+              className="text-left active:scale-95 transition-transform"
+            >
+              <MetricTile
+                label="Récords"
+                value={String(personalRecordEntries.length)}
+                detail="Toca aquí para ver tu gráfica de evolución de reps por ejercicio."
+                icon={Trophy}
+                iconClass="text-[#C4B5FD]"
+              />
+            </button>
           </div>
         </section>
+
+        <ExerciseProgressDialog 
+          open={isProgressDialogOpen} 
+          onOpenChange={setIsProgressDialogOpen} 
+        />
 
         <HeatmapCalendar />
 

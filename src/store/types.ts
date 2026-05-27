@@ -48,6 +48,7 @@ export interface ExerciseCatalogEntry {
   name: string;
   muscleGroup: MuscleGroup;
   visualKey?: ExerciseVisualKey;
+  illustrationUrl?: string;
   isBodyweight: boolean;
   mechanic: string | null;
   description?: string;
@@ -68,6 +69,7 @@ export interface WorkoutSet {
   reps: number;
   weight: number;
   completed: boolean;
+  completedReps?: number;
 }
 
 export interface WorkoutLog {
@@ -77,8 +79,10 @@ export interface WorkoutLog {
   muscleGroup: MuscleGroup;
   visualKey?: ExerciseVisualKey;
   iconName: ExerciseIconName;
+  illustrationUrl?: string;
   sets: WorkoutSet[];
   isBodyweight: boolean;
+  formGuidance?: string[];
 }
 
 export interface DraftSession {
